@@ -248,9 +248,8 @@
 
     function migrerConfig(c) {
         const def = configParDefaut();
-        if (!c || typeof c !== 'object') return def;
+        if (!c || typeof c !== 'object') return migrerConfig(def);
         c.medecins = Array.isArray(c.medecins) && c.medecins.length ? c.medecins : def.medecins;
-        c.materielBase = Array.isArray(c.materielBase) ? c.materielBase : def.materielBase;
         c.materielSpecifique = (c.materielSpecifique && typeof c.materielSpecifique === 'object') ? c.materielSpecifique : {};
         c.materielAVerifier = Array.isArray(c.materielAVerifier) ? c.materielAVerifier : def.materielAVerifier;
         c.familles = Array.isArray(c.familles) ? c.familles : [];
@@ -262,7 +261,24 @@
             if (!m.couleur) m.couleur = '#0288D1';
         });
 
-        const tousArticles = c.materielBase.concat(...Object.values(c.materielSpecifique));
+        /* Ancien "matériel commun" : reporté dans la liste complète de chaque médecin */
+        if (Array.isArray(c.materielBase) && c.materielBase.length) {
+            const base = c.materielBase;
+            c.medecins.forEach(m => {
+                const liste = Array.isArray(c.materielSpecifique[m.id]) ? c.materielSpecifique[m.id] : [];
+                base.forEach(b => {
+                    if (!liste.some(a => a.nom === b.nom)) liste.push(Object.assign({}, b, { uid: null }));
+                });
+                c.materielSpecifique[m.id] = liste;
+            });
+        }
+        delete c.materielBase;
+
+        c.medecins.forEach(m => {
+            if (!Array.isArray(c.materielSpecifique[m.id])) c.materielSpecifique[m.id] = [];
+        });
+
+        const tousArticles = [].concat(...Object.values(c.materielSpecifique));
         tousArticles.forEach(a => {
             if (!a.uid) a.uid = uid();
             if (a.fixe === undefined) a.fixe = false;
@@ -321,9 +337,9 @@
 
     function famillesUtilisees() {
         const liste = config.familles.slice();
-        config.materielBase.concat(...Object.values(config.materielSpecifique)).forEach(a => {
+        Object.values(config.materielSpecifique).forEach(articles => (articles || []).forEach(a => {
             if (a.famille && !liste.includes(a.famille)) liste.push(a.famille);
-        });
+        }));
         return liste;
     }
 
@@ -475,11 +491,6 @@
             const nbIVT = compteursIVT[med.id] || 0;
             if (nbIVT === 0) return;
 
-            config.materielBase.forEach(item => {
-                if (!commandeFinale[item.nom]) commandeFinale[item.nom] = { ref: item.ref, qteTotal: 0, famille: item.famille, cond: item.cond, unite: item.unite };
-                commandeFinale[item.nom].qteTotal += item.fixe ? item.qte : (item.qte * nbIVT);
-            });
-
             articlesDuMedecin(med.id).forEach(item => {
                 if (!commandeFinale[item.nom]) commandeFinale[item.nom] = { ref: item.ref, qteTotal: 0, famille: item.famille, cond: item.cond, unite: item.unite };
                 commandeFinale[item.nom].qteTotal += item.fixe ? item.qte : (item.qte * nbIVT);
@@ -601,8 +612,8 @@
         vueCourante = 'parametres';
         const container = document.getElementById('app-container');
         let contenu = '';
+        if (sectionParam === 'materiel') sectionParam = 'parMedecin';
         if (sectionParam === 'medecins') contenu = vueMedecins();
-        else if (sectionParam === 'materiel') contenu = vueMateriel();
         else if (sectionParam === 'parMedecin') contenu = vueParMedecin();
         else if (sectionParam === 'dotation') contenu = vueDotation();
         else contenu = vueSauvegarde();
@@ -612,8 +623,7 @@
                 <h2>⚙️ Paramètres</h2>
                 <div class="param-nav">
                     ${navBtn('medecins', '👨‍⚕️ Médecins')}
-                    ${navBtn('materiel', '📦 Matériel')}
-                    ${navBtn('parMedecin', '🧪 Par médecin')}
+                    ${navBtn('parMedecin', '🧪 Matériel par médecin')}
                     ${navBtn('dotation', '⚠️ Dotation')}
                     ${navBtn('sauvegarde', '💾 Sauvegarde')}
                 </div>
@@ -682,7 +692,7 @@
                     <span class="pastille" style="background:${esc(m.couleur)}"></span>
                     <div class="item-corps">
                         <div class="item-nom">${esc(m.nom)}</div>
-                        <div class="item-meta">${compteursIVT[m.id] || 0} IVT saisis · ${articlesDuMedecin(m.id).length} article(s) spécifique(s)</div>
+                        <div class="item-meta">${compteursIVT[m.id] || 0} IVT saisis · ${articlesDuMedecin(m.id).length} article(s) de matériel</div>
                     </div>
                     <button class="icon-btn" title="Modifier" onclick="editerMedecin('${m.id}')">✏️</button>
                     <button class="icon-btn danger" title="Supprimer" onclick="supprimerMedecin('${m.id}')">🗑️</button>
@@ -701,7 +711,7 @@
                 <div class="ligne-form"><button onclick="ajouterMedecin()">➕ AJOUTER</button></div>
             </div>`;
         }
-        html += '<p class="aide">La couleur sert à identifier le médecin dans le récapitulatif. Supprimer un médecin efface aussi sa saisie et son matériel spécifique.</p>';
+        html += '<p class="aide">La couleur sert à identifier le médecin dans le récapitulatif. Supprimer un médecin efface aussi sa saisie et son matériel.</p>';
         return html;
     }
 
@@ -734,7 +744,7 @@
         const m = medecinParId(id);
         if (!m) return;
         if (config.medecins.length <= 1) { alert("Il doit rester au moins un médecin."); return; }
-        if (!confirm(`Supprimer ${m.nom} ?\n\nSa saisie (nombre d'IVT) et son matériel spécifique seront également supprimés.`)) return;
+        if (!confirm(`Supprimer ${m.nom} ?\n\nSa saisie (nombre d'IVT) et sa liste de matériel seront également supprimés.`)) return;
         config.medecins = config.medecins.filter(x => x.id !== id);
         delete config.materielSpecifique[id];
         delete compteursIVT[id];
@@ -746,79 +756,10 @@
         afficherParametres();
     }
 
-    /* ---------- Section : Matériel de base ---------- */
-    function vueMateriel() {
-        let html = '<div class="sous-titre">Matériel commun à tous les médecins (' + config.materielBase.length + ')</div>';
-        if (!config.materielBase.length) html += '<div class="vide">Aucun article. Ajoutez-en un ci-dessous.</div>';
-
-        config.materielBase.forEach(a => {
-            if (formActif && formActif.type === 'base' && formActif.uid === a.uid) {
-                html += `
-                <div class="form-zone">
-                    <h4>✏️ Modifier l'article</h4>
-                    ${formArticle('mbe', a)}
-                    ${boutonsFormulaire(`modifierArticleBase('${a.uid}')`, 'annulerFormulaire()')}
-                </div>`;
-            } else {
-                html += `
-                <div class="item-ligne">
-                    <div class="item-corps">
-                        <div class="item-nom">${esc(a.nom)} <span class="famille">· ${esc(a.famille)}</span></div>
-                        <div class="item-meta">Réf ${esc(a.ref) || '—'} · qté ${a.qte}/IVT · cond. ${a.cond} ${esc(a.unite)} ${a.fixe ? '<span class="icone-fixe">FIXE</span>' : ''}</div>
-                    </div>
-                    <button class="icon-btn" title="Modifier" onclick="editerArticleBase('${a.uid}')">✏️</button>
-                    <button class="icon-btn danger" title="Supprimer" onclick="supprimerArticleBase('${a.uid}')">🗑️</button>
-                </div>`;
-            }
-        });
-
-        if (!(formActif && formActif.type === 'base')) {
-            html += `
-            <div class="form-zone">
-                <h4>➕ Ajouter un article (commun)</h4>
-                ${formArticle('mb', null)}
-                <div class="ligne-form"><button onclick="ajouterArticleBase()">➕ AJOUTER</button></div>
-            </div>`;
-        }
-        html += '<p class="aide">Ces articles sont comptés pour <b>chaque</b> médecin ayant une saisie &gt; 0. Quantité fixe = commandée une seule fois, quel que soit le nombre d\'IVT.</p>';
-        return html;
-    }
-
-    function editerArticleBase(u) { formActif = { type: 'base', uid: u }; afficherParametres(); }
-    function ajouterArticleBase() {
-        const a = lireArticle('mb');
-        if (!a) return;
-        a.uid = uid();
-        ajouterFamille(a.famille); ajouterUnite(a.unite);
-        config.materielBase.push(a);
-        sauverConfig();
-        afficherParametres();
-    }
-    function modifierArticleBase(u) {
-        const a = config.materielBase.find(x => x.uid === u);
-        if (!a) return;
-        const data = lireArticle('mbe');
-        if (!data) return;
-        Object.assign(a, data);
-        ajouterFamille(a.famille); ajouterUnite(a.unite);
-        sauverConfig();
-        formActif = null;
-        afficherParametres();
-    }
-    function supprimerArticleBase(u) {
-        const a = config.materielBase.find(x => x.uid === u);
-        if (!a) return;
-        if (!confirm(`Supprimer l'article "${a.nom}" du matériel commun ?`)) return;
-        config.materielBase = config.materielBase.filter(x => x.uid !== u);
-        sauverConfig();
-        formActif = null;
-        afficherParametres();
-    }
-
     /* ---------- Section : Matériel par médecin ---------- */
     function vueParMedecin() {
-        let html = '<div class="sous-titre">Matériel spécifique d\'un médecin</div>';
-        html += '<p class="aide">Ces articles s\'ajoutent au matériel commun uniquement pour le médecin sélectionné.</p>';
+        let html = '<div class="sous-titre">Matériel complet d\'un médecin</div>';
+        html += '<p class="aide">Chaque médecin possède sa <b>propre liste complète</b> : c\'est elle qui sert au bon de commande. Ajoutez, modifiez ou supprimez librement les articles.</p>';
 
         html += '<div class="chips">' + config.medecins.map(m =>
             `<button class="${medecinSelectionne === m.id ? 'actif' : ''}" onclick="selectionnerMedecin('${m.id}')">${esc(m.nom)}</button>`
@@ -833,7 +774,7 @@
         const articles = articlesDuMedecin(medecinSelectionne);
         html += `<div class="sous-titre" style="color:${esc(m.couleur)}">🧪 ${esc(m.nom)} — ${articles.length} article(s)</div>`;
 
-        if (!articles.length) html += '<div class="vide">Aucun article spécifique pour ce médecin.</div>';
+        if (!articles.length) html += '<div class="vide">Aucun article pour ce médecin. Ajoutez-en un ci-dessous.</div>';
 
         articles.forEach(a => {
             if (formActif && formActif.type === 'medArticle' && formActif.uid === a.uid) {
@@ -857,16 +798,24 @@
         });
 
         if (!(formActif && formActif.type === 'medArticle')) {
+            const existants = [];
+            Object.keys(config.materielSpecifique).forEach(idMed => {
+                if (idMed === medecinSelectionne) return;
+                (config.materielSpecifique[idMed] || []).forEach(a => {
+                    if (a.nom && !existants.some(x => x.a.nom === a.nom)) existants.push({ idMed: idMed, a: a });
+                });
+            });
             html += `
             <div class="form-zone">
                 <h4>➕ Ajouter un article pour ${esc(m.nom)}</h4>
-                <label class="champ">Partir d'un article du matériel commun
+                ${existants.length ? `
+                <label class="champ">Partir d'un article déjà utilisé
                     <select onchange="prefillerArticleMed(this.value)">
                         <option value="">— Saisie libre —</option>
-                        ${config.materielBase.map(a => `<option value="${a.uid}">${esc(a.nom)}</option>`).join('')}
+                        ${existants.map(x => `<option value="${esc(x.idMed)}|${esc(x.a.uid)}">${esc(x.a.nom)} — ${esc((medecinParId(x.idMed) || {}).nom || '')}</option>`).join('')}
                     </select>
                 </label>
-                <div style="height:10px"></div>
+                <div style="height:10px"></div>` : ''}
                 ${formArticle('pm', null)}
                 <div class="ligne-form"><button onclick="ajouterArticleMed()">➕ AJOUTER</button></div>
             </div>`;
@@ -876,8 +825,10 @@
 
     function selectionnerMedecin(id) { medecinSelectionne = id; formActif = null; afficherParametres(); }
 
-    function prefillerArticleMed(u) {
-        const a = config.materielBase.find(x => x.uid === u);
+    function prefillerArticleMed(cle) {
+        const morceaux = String(cle || '').split('|');
+        const idMed = morceaux[0], idArticle = morceaux[1];
+        const a = idArticle ? (config.materielSpecifique[idMed] || []).find(x => x.uid === idArticle) : null;
         const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
         const cb = document.getElementById('pm-fixe');
         if (!a) {
@@ -1029,7 +980,9 @@
         lecteur.onload = () => {
             try {
                 const objet = JSON.parse(lecteur.result);
-                if (!objet || !Array.isArray(objet.medecins) || !Array.isArray(objet.materielBase)) {
+                const valide = objet && Array.isArray(objet.medecins) &&
+                    (Array.isArray(objet.materielBase) || (objet.materielSpecifique && typeof objet.materielSpecifique === 'object'));
+                if (!valide) {
                     alert("Fichier invalide : ce n'est pas une configuration Commande IVT.");
                     return;
                 }
