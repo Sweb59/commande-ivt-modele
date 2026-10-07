@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Générateur de Commande IVT</title>
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><g transform=%22rotate(45 50 50)%22><path d=%22M42 30 H58 V70 H42 Z%22 fill=%22%23E1F5FE%22 stroke=%22%230277BD%22 stroke-width=%224%22/><path d=%22M42 50 H58 V70 H42 Z%22 fill=%22%2381D4FA%22/><path d=%22M48 70 H52 V85 H48 Z%22 fill=%22%230277BD%22/><path d=%22M35 85 H65 V92 H35 Z%22 fill=%22%230277BD%22/><path d=%22M49 10 H51 V30 H49 Z%22 fill=%22%230277BD%22 stroke=%22%230277BD%22 stroke-width=%222%22/><path d=%22M38 30 H62 V35 H38 Z%22 fill=%22%230277BD%22/></g></svg>">
+
+<meta name="theme-color" content="#0288D1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Commande IVT">
+
+<script src="vendor/xlsx.full.min.js"></script>
+
+<style>
+    body { font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; background-color: #F0F4F8; color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; padding-top: calc(80px + env(safe-area-inset-top)); padding-bottom: calc(20px + env(safe-area-inset-bottom)); box-sizing: border-box; }
+
+    .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); padding: 40px; width: 100%; max-width: 480px; text-align: center; position: relative; z-index: 10; box-sizing: border-box; }
+    .card h2 { color: #0277BD; margin-top: 0; border-bottom: 2px solid #E1F5FE; padding-bottom: 10px; margin-bottom: 25px; }
+    .card p { font-size: 1.1rem; line-height: 1.5; margin-bottom: 20px; }
+    .doctor-name { font-weight: 700; font-size: 1.3rem; }
+    .instruction { font-size: 0.95rem; color: #546E7A; margin-top: -10px; margin-bottom: 25px; font-style: italic; }
+
+    input[type="number"] { width: 150px; padding: 15px; font-size: 1.5rem; font-weight: bold; text-align: center; border: 2px solid #B3E5FC; border-radius: 8px; color: #0277BD; outline: none; margin-bottom: 25px; }
+    button { background-color: #0288D1; color: white; border: none; padding: 15px 30px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; transition: opacity 0.2s; }
+    button:hover { opacity: 0.9; }
+
+    .commande-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.95rem; }
+    .commande-table th, .commande-table td { border: 1px solid #E1F5FE; padding: 12px; text-align: center; }
+    .commande-table th { background-color: #0277BD; color: white; }
+
+    .hide-cond .col-cond { display: none !important; }
+
+    .copyright { position: fixed; bottom: 15px; left: 0; width: 100%; text-align: center; font-size: clamp(1rem, 6.5vw, 3.5rem); line-height: 1.1; white-space: nowrap; overflow: hidden; color: #90A4AE; opacity: 0.3; pointer-events: none; z-index: 1; }
+
+    /* ---------- Bouton Paramètres (haut à gauche) ---------- */
+    .btn-param { position: fixed; left: calc(16px + env(safe-area-inset-left)); top: calc(16px + env(safe-area-inset-top)); width: 52px; height: 52px; min-width: 52px; padding: 0; border-radius: 50%; background: #0277BD; color: #fff; font-size: 1.5rem; line-height: 52px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 100; }
+
+    /* ---------- Paramètres ---------- */
+    .param-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .param-nav button { width: auto; flex: 1 1 30%; min-width: 110px; padding: 10px 8px; font-size: 0.9rem; background-color: #90A4AE; }
+    .param-nav button.actif { background-color: #0277BD; }
+
+    .item-ligne { display: flex; align-items: center; gap: 8px; padding: 10px 8px; border: 1px solid #E1F5FE; border-radius: 8px; background: #FAFCFE; margin-bottom: 8px; text-align: left; }
+    .item-corps { flex: 1; min-width: 0; }
+    .item-nom { font-weight: 700; color: #0277BD; font-size: 1rem; word-break: break-word; }
+    .item-nom .famille { font-weight: 400; color: #78909C; font-size: 0.85rem; }
+    .item-meta { font-size: 0.85rem; color: #546E7A; word-break: break-word; }
+    .pastille { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1px solid rgba(0,0,0,0.15); }
+    .icone-fixe { background: #FFF3CD; color: #9A6B00; border: 1px solid #FFE08A; border-radius: 4px; font-size: 0.72rem; padding: 1px 5px; font-weight: 700; }
+
+    .icon-btn { width: auto; min-width: 40px; padding: 8px 6px; font-size: 1.15rem; background: #ECEFF1; color: #37474F; flex: none; }
+    .icon-btn.danger { background: #FFEBEE; }
+
+    .form-zone { background: #F7FAFC; border: 1px dashed #B3E5FC; border-radius: 8px; padding: 12px; margin-bottom: 15px; text-align: left; }
+    .form-zone h4 { margin: 0 0 10px 0; color: #0277BD; font-size: 1rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .champ { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #546E7A; font-weight: 500; }
+    .champ input, .champ select { padding: 10px; border: 2px solid #B3E5FC; border-radius: 8px; font-size: 1rem; width: 100%; box-sizing: border-box; background: #fff; color: #333; outline: none; }
+    .champ input:focus, .champ select:focus { border-color: #0288D1; }
+    .case-fixe { flex-direction: row; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.85rem; }
+    .case-fixe input { width: 20px; height: 20px; }
+    .ligne-form { display: flex; gap: 8px; margin-top: 12px; }
+    .ligne-form button { padding: 11px 12px; font-size: 0.95rem; }
+    .btn-annuler { background-color: #78909C; }
+    .btn-danger { background-color: #D32F2F; }
+    .btn-vert { background-color: #4CAF50; }
+    .btn-gris { background-color: #78909C; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 15px; }
+    .chips button { width: auto; padding: 9px 14px; font-size: 0.9rem; background: #fff; color: #37474F; border: 2px solid #B3E5FC; }
+    .chips button.actif { background: #0277BD; color: #fff; border-color: #0277BD; }
+
+    .sous-titre { text-align: left; color: #0277BD; font-size: 1.05rem; margin: 18px 0 10px 0; border-bottom: 2px solid #E1F5FE; padding-bottom: 6px; }
+    .vide { color: #90A4AE; font-style: italic; font-size: 0.95rem; padding: 12px; background: #FAFCFE; border-radius: 8px; margin-bottom: 12px; }
+    .aide { font-size: 0.85rem; color: #78909C; text-align: left; line-height: 1.4; margin-bottom: 12px; }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 600px) {
+        .card { padding: 15px; }
+        input[type="number"] { width: 120px; padding: 10px; }
+        .form-grid { grid-template-columns: 1fr; }
+        .param-nav button { flex: 1 1 45%; }
+
+        .commande-table, .commande-table thead, .commande-table tbody, .commande-table th, .commande-table td, .commande-table tr {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .commande-table thead tr { display: none; }
+        .commande-table tr { margin-bottom: 15px; border: 2px solid #E1F5FE; border-radius: 8px; background: white; overflow: hidden; }
+        .commande-table td { border: none; border-bottom: 1px solid #F0F4F8; position: relative; padding: 10px 10px 10px 45% !important; text-align: right !important; min-height: 40px; }
+        .commande-table td:last-child { border-bottom: none; }
+        .commande-table td::before { content: attr(data-label); position: absolute; left: 10px; top: 12px; width: 40%; text-align: left; font-size: 0.85rem; color: #78909C; font-weight: normal; }
+        .commande-table td.row-famille { padding: 10px 15px !important; text-align: left !important; border-bottom: none; }
+        .commande-table td.row-famille::before { content: none; }
+    }
+
+    @media print {
+        .no-print, .copyright, .btn-param { display: none !important; }
+        body { background: white; padding: 0; margin: 0; }
+        .card { box-shadow: none; max-width: 100%; padding: 0; margin: 0; }
+        .card h2 { margin-bottom: 10px; padding-bottom: 5px; font-size: 1.5rem; }
+        .card p { margin-bottom: 10px; font-size: 0.9rem; }
+        h3 { padding-bottom: 2px !important; font-size: 1.2rem; }
+
+        .commande-table, .commande-table thead, .commande-table tbody, .commande-table th, .commande-table td, .commande-table tr { display: table-cell; }
+        .commande-table { display: table; margin-top: 10px !important; margin-bottom: 15px !important; }
+        .commande-table thead { display: table-header-group; }
+        .commande-table thead tr { display: table-row; }
+        .commande-table tbody { display: table-row-group; }
+        .commande-table tr { display: table-row; border: none; margin-bottom: 0; }
+        .commande-table td::before { content: none !important; }
+        .commande-table th, .commande-table td { border: 1px solid #E1F5FE; padding: 4px 8px !important; font-size: 0.85rem !important; text-align: center !important; }
+
+        tr { page-break-inside: avoid; }
+
+        .saut-de-page { page-break-before: always; break-before: page; margin-top: 0 !important; }
+    }
+</style>
+</head>
+<body>
+
+    <div id="app-container"></div>
+    <div class="copyright">@Swéb - EyeLabs</div>
+    <button id="btn-param" class="btn-param no-print" onclick="basculerParametres()" title="Paramètres">⚙️</button>
+
+<script>
+    /* ==================================================================
+       ÉTAT ET PERSISTANCE
+       ================================================================== */
+    const CLE_CONFIG = 'configIVT_HPVA';
+    const CLE_SAISIE = 'saisieIVT_HPVA';
+
+    const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
+    const UNITES_DEFAUT = ["boîte", "carton", "lot"];
+
+    let config = null;
+    let compteursIVT = {};
+    let indexMedecinActuel = 0;
+    let modeCorrection = false;
+    let donneesCommandeFinale = [];
+
+    let vueCourante = 'saisie';
+    let vueAvantParam = 'saisie';
+    let sectionParam = 'medecins';
+    let formActif = null;          /* {type, id/uid} */
+    let medecinSelectionne = null; /* id du médecin (section "par médecin") */
+
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+    function slug(nom) {
+        return (nom || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'medecin';
+    }
+
+    const COULEURS_MEDECINS = ['#7E57C2', '#E53935', '#1E88E5', '#8E24AA', '#F57F17', '#00897B', '#AD1457'];
+
+    /* Version de l'application :
+       null            -> version clinique (Dr Karkoutly, Dr Laffineur, ...)
+       tableau de noms -> version modèle (Médecin 1, Médecin 2, ...) : base vierge
+                          de médecins, à configurer par l'utilisateur.        */
+    const VERSION_MODELE = ['Médecin 1', 'Médecin 2', 'Médecin 3', 'Médecin 4', 'Médecin 5'];
+
+    function medecinsParDefaut() {
+        if (Array.isArray(VERSION_MODELE)) {
+            return VERSION_MODELE.map((nom, i) => ({
+                id: 'medecin' + (i + 1),
+                nom: nom,
+                couleur: COULEURS_MEDECINS[i % COULEURS_MEDECINS.length]
+            }));
+        }
+        return [
+            { id: 'karkoutly', nom: 'Dr Karkoutly', couleur: '#7E57C2' },
+            { id: 'laffineur', nom: 'Dr Laffineur', couleur: '#E53935' },
+            { id: 'doucet', nom: 'Dr Doucet', couleur: '#1E88E5' },
+            { id: 'richet', nom: 'Dr Richet', couleur: '#8E24AA' },
+            { id: 'buisset', nom: 'Dr Buisset', couleur: '#F57F17' }
+        ];
+    }
+
+    function configParDefaut() {
+        return {
+            medecins: medecinsParDefaut(),
+            materielBase: [
+                { nom: "Bétadine Opht 20ml", ref: "1548498", qte: 2, famille: "Médicaments & Solutés", cond: 20, unite: "boîte", fixe: true },
+                { nom: "Aiguilles Jaunes", ref: "1078380", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+                { nom: "Sets IVT", ref: "1640668", qte: 1, famille: "Consommables & Sets", cond: 76, unite: "carton" },
+                { nom: "Badigeons", ref: "1534736", qte: 1, famille: "Consommables & Sets", cond: 40, unite: "boîte" },
+                { nom: "Sterdex Unidose", ref: "1015711", qte: 1, famille: "Médicaments & Solutés", cond: 12, unite: "boîte" },
+                { nom: "Tétracaïne 1% 0.4ml", ref: "1017413", qte: 1, famille: "Médicaments & Solutés", cond: 100, unite: "boîte" }
+            ],
+            materielSpecifique: Array.isArray(VERSION_MODELE) ? {} : {
+                'karkoutly': [
+                    { nom: "Aiguilles Roses 18G", ref: "1053188", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+                    { nom: "Feutres dermographiques", ref: "1633514", qte: 1, famille: "Consommables & Sets", cond: 50, unite: "boîte" },
+                    { nom: "Microsponges", ref: "1118761", qte: 1, famille: "Consommables & Sets", cond: 25, unite: "boîte" },
+                    { nom: "Seringues de 20ml Luer Lock", ref: "1078408", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+                    { nom: "Gants Stériles 6.5", ref: "1558699", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+                    { nom: "Quinofree 0.3% 0.5ml", ref: "1532136", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" },
+                    { nom: "BSS Poche 500ml", ref: "1018394", qte: 1, famille: "Médicaments & Solutés", cond: 6, unite: "carton", fixe: true }
+                ],
+                'laffineur': [
+                    { nom: "Feutres dermographiques", ref: "1633514", qte: 1, famille: "Consommables & Sets", cond: 50, unite: "boîte" },
+                    { nom: "Gants Stériles 8.5", ref: "1558703", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+                    { nom: "Na Cl 0.9%", ref: "1541039", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" }
+                ],
+                'doucet': [
+                    { nom: "Aiguilles Roses 18G", ref: "1053188", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+                    { nom: "Feutres dermographiques", ref: "1633514", qte: 1, famille: "Consommables & Sets", cond: 50, unite: "boîte" },
+                    { nom: "Microsponges", ref: "1118761", qte: 1, famille: "Consommables & Sets", cond: 25, unite: "boîte" },
+                    { nom: "Seringues de 20ml Luer Lock", ref: "1078408", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+                    { nom: "Gants Stériles 8", ref: "1558702", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+                    { nom: "Quinofree 0.3% 0.5ml", ref: "1532136", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" },
+                    { nom: "BSS Poche 500ml", ref: "1018394", qte: 1, famille: "Médicaments & Solutés", cond: 6, unite: "carton", fixe: true }
+                ],
+                'richet': [
+                    { nom: "Gants Stériles 7.5", ref: "1558701", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+                    { nom: "Na Cl 0.9%", ref: "1541039", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" },
+                    { nom: "Quinofree 0.3% 0.5ml", ref: "1532136", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" }
+                ],
+                'buisset': [
+                    { nom: "Gants Stériles 7.5", ref: "1558701", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+                    { nom: "Na Cl 0.9%", ref: "1541039", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" }
+                ]
+            },
+            materielAVerifier: [
+                { nom: "Alézes à Usage Unique (4 Sachets)", ref: "1637526" },
+                { nom: "Absorbex 40 x 60 (3 Paquets)", ref: "1254587" },
+                { nom: "Trocards avec filtre BD (une vingtaine)", ref: "1248956" },
+                { nom: "Coques Universelles (2 Boîtes)", ref: "1149497" },
+                { nom: "Compresses Ophta (2 Boîtes)", ref: "1051069" },
+                { nom: "Compresses Stériles 7.5 x 7.5 (2 Boîtes)", ref: "1242287" },
+                { nom: "Seringues 1ml Luer Lock (Une vingtaine)", ref: "1148318" },
+                { nom: "Bétadine Dermique 500ml (4 Flacons)", ref: "1548491" },
+                { nom: "Aniosgel 800 500ml (3 Flacons)", ref: "1650332" },
+                { nom: "Chibro Cadron Collyre 5ml (4 Flacons)", ref: "1015400" }
+            ],
+            familles: FAMILLES_DEFAUT.slice(),
+            unites: UNITES_DEFAUT.slice()
+        };
+    }
+
+    function migrerConfig(c) {
+        const def = configParDefaut();
+        if (!c || typeof c !== 'object') return def;
+        c.medecins = Array.isArray(c.medecins) && c.medecins.length ? c.medecins : def.medecins;
+        c.materielBase = Array.isArray(c.materielBase) ? c.materielBase : def.materielBase;
+        c.materielSpecifique = (c.materielSpecifique && typeof c.materielSpecifique === 'object') ? c.materielSpecifique : {};
+        c.materielAVerifier = Array.isArray(c.materielAVerifier) ? c.materielAVerifier : def.materielAVerifier;
+        c.familles = Array.isArray(c.familles) ? c.familles : [];
+        c.unites = Array.isArray(c.unites) ? c.unites : [];
+
+        c.medecins.forEach(m => {
+            if (!m.id) m.id = slugUnique(c.medecins, m.nom);
+            if (!m.nom) m.nom = m.id;
+            if (!m.couleur) m.couleur = '#0288D1';
+        });
+
+        const tousArticles = c.materielBase.concat(...Object.values(c.materielSpecifique));
+        tousArticles.forEach(a => {
+            if (!a.uid) a.uid = uid();
+            if (a.fixe === undefined) a.fixe = false;
+            a.qte = (typeof a.qte === 'number') ? a.qte : (parseInt(a.qte, 10) || 0);
+            a.cond = (typeof a.cond === 'number') ? a.cond : (parseInt(a.cond, 10) || 1) || 1;
+            if (!a.unite) a.unite = 'boîte';
+            if (!a.famille) a.famille = 'Divers';
+            if (!a.ref) a.ref = '';
+        });
+        c.materielAVerifier.forEach(a => { if (!a.uid) a.uid = uid(); if (!a.ref) a.ref = ''; });
+        return c;
+    }
+
+    function chargerConfig() {
+        try {
+            const brut = localStorage.getItem(CLE_CONFIG);
+            if (brut) return migrerConfig(JSON.parse(brut));
+        } catch (e) { /* config corrompue : on repart des valeurs par défaut */ }
+        const def = migrerConfig(configParDefaut());
+        try { localStorage.setItem(CLE_CONFIG, JSON.stringify(def)); } catch (e) {}
+        return def;
+    }
+
+    function sauverConfig() {
+        config = migrerConfig(config);
+        try { localStorage.setItem(CLE_CONFIG, JSON.stringify(config)); } catch (e) { alert("Impossible d'enregistrer la configuration."); }
+    }
+
+    function chargerSaisie() {
+        try {
+            const brut = localStorage.getItem(CLE_SAISIE);
+            if (brut) compteursIVT = JSON.parse(brut) || {};
+        } catch (e) { compteursIVT = {}; }
+    }
+    function sauverSaisie() { try { localStorage.setItem(CLE_SAISIE, JSON.stringify(compteursIVT)); } catch (e) {} }
+
+    /* ==================================================================
+       UTILITAIRES
+       ================================================================== */
+    function esc(s) {
+        return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function val(id) { const e = document.getElementById(id); return e ? e.value : ''; }
+    function num(id) { return Math.max(0, parseInt(val(id), 10) || 0); }
+    function coche(id) { const e = document.getElementById(id); return !!(e && e.checked); }
+
+    function slugUnique(liste, nom) {
+        let base = slug(nom), id = base, i = 2;
+        while (liste.some(m => m.id === id)) { id = base + '-' + i; i++; }
+        return id;
+    }
+
+    function ajouterFamille(f) { f = (f || '').trim(); if (f && !config.familles.includes(f)) config.familles.push(f); }
+    function ajouterUnite(u) { u = (u || '').trim(); if (u && !config.unites.includes(u)) config.unites.push(u); }
+
+    function famillesUtilisees() {
+        const liste = config.familles.slice();
+        config.materielBase.concat(...Object.values(config.materielSpecifique)).forEach(a => {
+            if (a.famille && !liste.includes(a.famille)) liste.push(a.famille);
+        });
+        return liste;
+    }
+
+    function medecinParId(id) { return config.medecins.find(m => m.id === id) || null; }
+    function articlesDuMedecin(id) { return config.materielSpecifique[id] || []; }
+
+    /* ==================================================================
+       SAISIE / RÉCAPITULATIF / COMMANDE
+       ================================================================== */
+    window.onload = () => {
+        config = chargerConfig();
+        chargerSaisie();
+        indexMedecinActuel = 0;
+        afficherFenetre();
+    };
+
+    function obtenirDateFichier() {
+        const date = new Date();
+        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+    }
+
+    function redisplay(vue) {
+        if (vue === 'recap' || vue === 'correction') afficherRecapitulatif();
+        else if (vue === 'commande') terminerSaisie();
+        else afficherFenetre();
+    }
+
+    function afficherFenetre() {
+        vueCourante = 'saisie';
+        const container = document.getElementById('app-container');
+        if (indexMedecinActuel >= config.medecins.length && !modeCorrection) { afficherRecapitulatif(); return; }
+        const medecin = config.medecins[indexMedecinActuel];
+        if (!medecin) { afficherRecapitulatif(); return; }
+        const valeurSaisie = compteursIVT[medecin.id] !== undefined ? compteursIVT[medecin.id] : '';
+
+        let boutonRetour = '';
+        if (modeCorrection) {
+            boutonRetour = `<button onclick="annulerCorrection()" class="btn-gris" style="flex: 1; margin-right:15px;">ANNULER</button>`;
+        } else if (indexMedecinActuel > 0) {
+            boutonRetour = `<button onclick="retourAuPrecedent()" class="btn-gris" style="flex: 1; margin-right:15px;">⬅ RETOUR</button>`;
+        } else if (indexMedecinActuel === 0 && Object.keys(compteursIVT).length > 0) {
+            boutonRetour = `<button onclick="reinitialiserSaisie()" class="btn-danger" style="flex: 1; margin-right:15px;">🔄 RÉ-INITIALISER</button>`;
+        }
+
+        container.innerHTML = `
+            <div class="card">
+                <h2>Nombre d'IVT réalisées</h2>
+                <p>Indiquez combien d'IVT a réalisé le <br><span class="doctor-name" style="color: ${esc(medecin.couleur)};">${esc(medecin.nom)}</span> <br>dans la case ci-dessous :</p>
+                <p class="instruction">
+                    Ne comptez pas le nombre de patients, mais le nombre d'étiquettes de produit dans le cahier de traçabilité.
+                </p>
+                <input type="number" id="inputIVT" min="0" value="${esc(valeurSaisie)}" placeholder="0">
+                <div style="display:flex;">
+                    ${boutonRetour}
+                    <button onclick="validerEtPasserAuSuivant()" style="flex: 1;">VALIDER</button>
+                </div>
+            </div>`;
+
+        const inputEl = document.getElementById('inputIVT');
+        inputEl.addEventListener('keypress', (e) => { if (e.key === 'Enter') validerEtPasserAuSuivant(); });
+        inputEl.focus();
+        setTimeout(() => { const v = inputEl.value; inputEl.value = ''; inputEl.value = v; }, 10);
+    }
+
+    function validerEtPasserAuSuivant() {
+        const input = document.getElementById('inputIVT');
+        const medecin = config.medecins[indexMedecinActuel];
+        if (!medecin) { afficherRecapitulatif(); return; }
+        compteursIVT[medecin.id] = Math.max(0, parseInt(input.value, 10) || 0);
+        sauverSaisie();
+        if (modeCorrection) { modeCorrection = false; indexMedecinActuel = config.medecins.length; afficherRecapitulatif(); }
+        else { indexMedecinActuel++; afficherFenetre(); }
+    }
+
+    function retourAuPrecedent() { if (indexMedecinActuel > 0) { indexMedecinActuel--; afficherFenetre(); } }
+    function annulerCorrection() { modeCorrection = false; indexMedecinActuel = config.medecins.length; afficherRecapitulatif(); }
+
+    function reinitialiserSaisie() {
+        if (!confirm("Ré-initialiser toutes les saisies (nombre d'IVT) ?")) return;
+        compteursIVT = {};
+        sauverSaisie();
+        indexMedecinActuel = 0;
+        modeCorrection = false;
+        afficherFenetre();
+    }
+
+    function afficherRecapitulatif() {
+        vueCourante = 'recap';
+        modeCorrection = false;
+        if (indexMedecinActuel > config.medecins.length) indexMedecinActuel = config.medecins.length;
+        const container = document.getElementById('app-container');
+        let listeHtml = '<ul style="list-style: none; padding: 0; margin: 0 auto 25px auto; max-width: 320px; text-align: left;">';
+        config.medecins.forEach(med => {
+            listeHtml += `<li style="padding: 10px 0; border-bottom: 1px solid #E1F5FE; display: flex; justify-content: space-between; align-items:center;">
+                <span style="font-weight: 500; color: ${esc(med.couleur)};">${esc(med.nom)}</span><strong style="color: #0277BD; font-size: 1.1rem;">${compteursIVT[med.id] || 0} IVT</strong></li>`;
+        });
+        listeHtml += '</ul>';
+
+        container.innerHTML = `
+            <div class="card">
+                <h2>Récapitulatif des saisies</h2>
+                <p>Vérifiez les quantités avant de générer le bon de commande :</p>
+                ${listeHtml}
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <button onclick="terminerSaisie()">GÉNÉRER LA COMMANDE</button>
+                    <button onclick="afficherMenuCorrection()" class="btn-gris">CORRIGER UNE ERREUR</button>
+                </div>
+            </div>`;
+    }
+
+    function afficherMenuCorrection() {
+        vueCourante = 'correction';
+        const container = document.getElementById('app-container');
+        let boutons = '';
+        config.medecins.forEach((med, index) => {
+            boutons += `<button onclick="allerAuMedecin(${index})" style="margin-bottom: 10px; background-color: ${esc(med.couleur)};">${esc(med.nom)}</button>`;
+        });
+        container.innerHTML = `<div class="card"><h2>Corriger une saisie</h2><p>Sélectionnez le médecin :</p><div style="display:flex; flex-direction:column;">${boutons}</div><button onclick="afficherRecapitulatif()" class="btn-gris" style="margin-top: 15px;">⬅ RETOUR</button></div>`;
+    }
+
+    function allerAuMedecin(index) { modeCorrection = true; indexMedecinActuel = index; afficherFenetre(); }
+
+    function toggleConditionnement() {
+        const table = document.getElementById('table-commande');
+        const btn = document.getElementById('btn-toggle-cond');
+        if (!table || !btn) return;
+
+        if (table.classList.contains('hide-cond')) {
+            table.classList.remove('hide-cond');
+            btn.innerHTML = '👁️ Masquer Conditionnement';
+            btn.style.backgroundColor = '#78909C';
+            document.querySelectorAll('.row-famille').forEach(el => el.setAttribute('colspan', '4'));
+        } else {
+            table.classList.add('hide-cond');
+            btn.innerHTML = '👁️ Afficher Conditionnement';
+            btn.style.backgroundColor = '#0288D1';
+            document.querySelectorAll('.row-famille').forEach(el => el.setAttribute('colspan', '3'));
+        }
+    }
+
+    function terminerSaisie() {
+        vueCourante = 'commande';
+        const container = document.getElementById('app-container');
+        let commandeFinale = {};
+        donneesCommandeFinale = [];
+        const dateAffichage = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        config.medecins.forEach(med => {
+            const nbIVT = compteursIVT[med.id] || 0;
+            if (nbIVT === 0) return;
+
+            config.materielBase.forEach(item => {
+                if (!commandeFinale[item.nom]) commandeFinale[item.nom] = { ref: item.ref, qteTotal: 0, famille: item.famille, cond: item.cond, unite: item.unite };
+                commandeFinale[item.nom].qteTotal += item.fixe ? item.qte : (item.qte * nbIVT);
+            });
+
+            articlesDuMedecin(med.id).forEach(item => {
+                if (!commandeFinale[item.nom]) commandeFinale[item.nom] = { ref: item.ref, qteTotal: 0, famille: item.famille, cond: item.cond, unite: item.unite };
+                commandeFinale[item.nom].qteTotal += item.fixe ? item.qte : (item.qte * nbIVT);
+            });
+        });
+
+        let lignes = "";
+        famillesUtilisees().forEach(f => {
+            let produits = Object.entries(commandeFinale).filter(([n, d]) => d.famille === f).sort((a, b) => a[0].localeCompare(b[0]));
+            if (produits.length > 0) {
+                lignes += `<tr style="background:#E1F5FE"><td class="row-famille" colspan="3" style="text-align:left; font-weight:bold; color:#0277BD; padding:10px 15px;">📁 ${esc(f)}</td></tr>`;
+                produits.forEach(([nom, data]) => {
+                    let nbBoites = Math.ceil(data.qteTotal / (data.cond || 1));
+                    let libelleUnite = data.unite || 'boîte';
+                    if (nbBoites > 1) {
+                        if (libelleUnite === 'boîte') libelleUnite = 'boîtes';
+                        else if (libelleUnite === 'carton') libelleUnite = 'cartons';
+                        else if (libelleUnite === 'lot') libelleUnite = 'lots';
+                    }
+                    let texteConditionnement = `${nbBoites} ${libelleUnite}`;
+                    donneesCommandeFinale.push({ famille: f, nom: nom, ref: data.ref, qteTotal: data.qteTotal, conditionnement: texteConditionnement });
+
+                    lignes += `<tr>
+                        <td data-label="Produit :" style="text-align:left; font-weight:bold; padding-left:25px;">${esc(nom)}</td>
+                        <td data-label="Référence :">${esc(data.ref)}</td>
+                        <td data-label="Quantité :" style="font-weight:bold;">${data.qteTotal}</td>
+                        <td data-label="Conditionnement :" class="col-cond" style="color:#0288D1; font-weight:bold;">${esc(texteConditionnement)} <br><span style="font-size:0.75rem; font-weight:normal; color:#78909C;">(par ${data.cond})</span></td>
+                    </tr>`;
+                });
+            }
+        });
+
+        let lignesVerif = "";
+        config.materielAVerifier.forEach(item => {
+            lignesVerif += `<tr>
+                <td data-label="Produit :" style="text-align:left;">${esc(item.nom)}</td>
+                <td data-label="Référence :">${esc(item.ref)}</td>
+                <td data-label="Présent :"><input type="checkbox" style="width:20px; height:20px; margin:0;"></td>
+            </tr>`;
+        });
+
+        if (!lignes) {
+            lignes = `<tr><td colspan="4" style="padding:20px; color:#90A4AE;">Aucun médecin n'a de saisie supérieure à 0.</td></tr>`;
+        }
+
+        container.innerHTML = `
+            <div class="card" style="max-width: 800px; padding: 30px;">
+                <h2>Bon de Commande IVT</h2>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px;">
+                    <p style="font-size: 0.9rem; color: #78909C; font-style: italic; margin: 0;">Édité le ${esc(dateAffichage)}</p>
+                    <button id="btn-toggle-cond" onclick="toggleConditionnement()" class="no-print" style="width: auto; padding: 8px 15px; font-size: 0.85rem; margin: 0;">👁️ Afficher Conditionnement</button>
+                </div>
+
+                <table class="commande-table hide-cond" id="table-commande">
+                    <thead>
+                        <tr>
+                            <th>Produit</th>
+                            <th>Référence</th>
+                            <th>Quantité à commander</th>
+                            <th class="col-cond">Conditionnement</th>
+                        </tr>
+                    </thead>
+                    <tbody>${lignes}</tbody>
+                </table>
+
+                <h3 class="saut-de-page" style="margin-top:35px; color:#D32F2F; border-bottom: 2px solid #FFEBEE;">⚠️ À vérifier en stock (Dotation)</h3>
+
+                <table class="commande-table" style="margin-bottom:30px;">
+                    <thead><tr style="background:#D32F2F"><th>Produit</th><th>Référence</th><th>Présent</th></tr></thead>
+                    <tbody>${lignesVerif}</tbody>
+                </table>
+
+                <div class="no-print" style="display:flex; gap:10px; flex-wrap: wrap;">
+                    <button onclick="window.print()" style="flex:1; min-width: 100%;">🖨️ IMPRIMER</button>
+                    <button onclick="exporterExcel()" class="btn-vert" style="flex:1; min-width: 100%;">📊 GÉNÉRATION EXCEL</button>
+                    <button onclick="reinitialiserSaisie()" class="btn-gris" style="flex:1; min-width: 100%;">🔄 RÉ-INITIALISER</button>
+                </div>
+            </div>`;
+    }
+
+    function exporterExcel() {
+        if (typeof XLSX === 'undefined') { alert("La librairie Excel n'est pas disponible."); return; }
+        let dataForExcel = [["Famille", "Produit", "Référence", "Quantité à commander", "Conditionnement"]];
+        let familleActuelle = "";
+        donneesCommandeFinale.forEach(row => {
+            let affichageFamille = row.famille !== familleActuelle ? row.famille : "";
+            familleActuelle = row.famille;
+            dataForExcel.push([affichageFamille, row.nom, row.ref, row.qteTotal, row.conditionnement]);
+        });
+        const worksheet = XLSX.utils.aoa_to_sheet(dataForExcel);
+        worksheet['!cols'] = [{ wch: 25 }, { wch: 35 }, { wch: 15 }, { wch: 22 }, { wch: 20 }];
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Commande IVT");
+        XLSX.writeFile(workbook, `Commande IVT ${obtenirDateFichier()}.xlsx`);
+    }
+
+    /* ==================================================================
+       PARAMÈTRES
+       ================================================================== */
+    function basculerParametres() {
+        if (vueCourante === 'parametres') {
+            formActif = null;
+            redisplay(vueAvantParam);
+        } else {
+            vueAvantParam = vueCourante;
+            formActif = null;
+            afficherParametres();
+        }
+    }
+
+    function allerSection(section) { sectionParam = section; formActif = null; afficherParametres(); }
+
+    function navBtn(id, label) {
+        return `<button class="${sectionParam === id ? 'actif' : ''}" onclick="allerSection('${id}')">${label}</button>`;
+    }
+
+    function afficherParametres() {
+        vueCourante = 'parametres';
+        const container = document.getElementById('app-container');
+        let contenu = '';
+        if (sectionParam === 'medecins') contenu = vueMedecins();
+        else if (sectionParam === 'materiel') contenu = vueMateriel();
+        else if (sectionParam === 'parMedecin') contenu = vueParMedecin();
+        else if (sectionParam === 'dotation') contenu = vueDotation();
+        else contenu = vueSauvegarde();
+
+        container.innerHTML = `
+            <div class="card" style="max-width: 800px;">
+                <h2>⚙️ Paramètres</h2>
+                <div class="param-nav">
+                    ${navBtn('medecins', '👨‍⚕️ Médecins')}
+                    ${navBtn('materiel', '📦 Matériel')}
+                    ${navBtn('parMedecin', '🧪 Par médecin')}
+                    ${navBtn('dotation', '⚠️ Dotation')}
+                    ${navBtn('sauvegarde', '💾 Sauvegarde')}
+                </div>
+                ${contenu}
+                <button onclick="basculerParametres()" class="btn-gris" style="margin-top: 20px;">⬅ RETOUR À L'APPLICATION</button>
+            </div>`;
+    }
+
+    /* ---------- Formulaire article ---------- */
+    function formArticle(pre, a) {
+        a = a || { nom: '', ref: '', qte: 1, famille: '', cond: 1, unite: 'boîte', fixe: false };
+        return `
+        <div class="form-grid">
+            <label class="champ">Nom *<input type="text" id="${pre}-nom" value="${esc(a.nom)}" placeholder="Ex. Bétadine Opht 20ml"></label>
+            <label class="champ">Référence<input type="text" id="${pre}-ref" value="${esc(a.ref)}" placeholder="Ex. 1548498"></label>
+            <label class="champ">Quantité (par IVT)<input type="number" id="${pre}-qte" min="0" value="${a.qte}"></label>
+            <label class="champ">Conditionnement (par)<input type="number" id="${pre}-cond" min="1" value="${a.cond}"></label>
+            <label class="champ">Famille<input type="text" id="${pre}-famille" list="liste-familles" value="${esc(a.famille)}"></label>
+            <label class="champ">Unité<input type="text" id="${pre}-unite" list="liste-unites" value="${esc(a.unite || 'boîte')}"></label>
+        </div>
+        <label class="champ case-fixe"><input type="checkbox" id="${pre}-fixe" ${a.fixe ? 'checked' : ''}> Quantité fixe (non multipliée par le nombre d'IVT)</label>
+        <datalist id="liste-familles">${config.familles.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+        <datalist id="liste-unites">${config.unites.map(u => `<option value="${esc(u)}">`).join('')}</datalist>`;
+    }
+
+    function lireArticle(pre) {
+        const nom = val(pre + '-nom').trim();
+        if (!nom) { alert("Le nom de l'article est obligatoire."); return null; }
+        const fixe = coche(pre + '-fixe');
+        const qte = num(pre + '-qte');
+        const cond = Math.max(1, num(pre + '-cond') || 1);
+        return {
+            nom: nom,
+            ref: val(pre + '-ref').trim(),
+            qte: qte,
+            cond: cond,
+            famille: val(pre + '-famille').trim() || 'Divers',
+            unite: val(pre + '-unite').trim() || 'boîte',
+            fixe: fixe
+        };
+    }
+
+    function boutonsFormulaire(onSave, onAnnuler) {
+        return `<div class="ligne-form"><button onclick="${onSave}">✅ ENREGISTRER</button><button onclick="${onAnnuler}" class="btn-annuler">✖ ANNULER</button></div>`;
+    }
+
+    /* ---------- Section : Médecins ---------- */
+    function vueMedecins() {
+        let html = '<div class="sous-titre">Liste des médecins (' + config.medecins.length + ')</div>';
+        if (!config.medecins.length) html += '<div class="vide">Aucun médecin. Ajoutez-en un ci-dessous.</div>';
+
+        config.medecins.forEach(m => {
+            if (formActif && formActif.type === 'medecin' && formActif.id === m.id) {
+                html += `
+                <div class="form-zone">
+                    <h4>✏️ Modifier "${esc(m.nom)}"</h4>
+                    <div class="form-grid">
+                        <label class="champ">Nom du médecin *<input type="text" id="md-nom" value="${esc(m.nom)}"></label>
+                        <label class="champ">Couleur<input type="color" id="md-couleur" value="${esc(m.couleur)}"></label>
+                    </div>
+                    ${boutonsFormulaire(`modifierMedecin('${m.id}')`, 'annulerFormulaire()')}
+                </div>`;
+            } else {
+                html += `
+                <div class="item-ligne">
+                    <span class="pastille" style="background:${esc(m.couleur)}"></span>
+                    <div class="item-corps">
+                        <div class="item-nom">${esc(m.nom)}</div>
+                        <div class="item-meta">${compteursIVT[m.id] || 0} IVT saisis · ${articlesDuMedecin(m.id).length} article(s) spécifique(s)</div>
+                    </div>
+                    <button class="icon-btn" title="Modifier" onclick="editerMedecin('${m.id}')">✏️</button>
+                    <button class="icon-btn danger" title="Supprimer" onclick="supprimerMedecin('${m.id}')">🗑️</button>
+                </div>`;
+            }
+        });
+
+        if (!(formActif && formActif.type === 'medecin')) {
+            html += `
+            <div class="form-zone">
+                <h4>➕ Ajouter un médecin</h4>
+                <div class="form-grid">
+                    <label class="champ">Nom du médecin *<input type="text" id="md-nom" placeholder="Ex. Dr Dupont"></label>
+                    <label class="champ">Couleur<input type="color" id="md-couleur" value="#0288D1"></label>
+                </div>
+                <div class="ligne-form"><button onclick="ajouterMedecin()">➕ AJOUTER</button></div>
+            </div>`;
+        }
+        html += '<p class="aide">La couleur sert à identifier le médecin dans le récapitulatif. Supprimer un médecin efface aussi sa saisie et son matériel spécifique.</p>';
+        return html;
+    }
+
+    function editerMedecin(id) { formActif = { type: 'medecin', id: id }; afficherParametres(); }
+    function annulerFormulaire() { formActif = null; afficherParametres(); }
+
+    function ajouterMedecin() {
+        const nom = val('md-nom').trim();
+        if (!nom) { alert("Le nom du médecin est obligatoire."); return; }
+        const couleur = val('md-couleur') || '#0288D1';
+        const id = slugUnique(config.medecins, nom);
+        config.medecins.push({ id: id, nom: nom, couleur: couleur });
+        sauverConfig();
+        afficherParametres();
+    }
+
+    function modifierMedecin(id) {
+        const m = medecinParId(id);
+        if (!m) return;
+        const nom = val('md-nom').trim();
+        if (!nom) { alert("Le nom du médecin est obligatoire."); return; }
+        m.nom = nom;
+        m.couleur = val('md-couleur') || m.couleur;
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+
+    function supprimerMedecin(id) {
+        const m = medecinParId(id);
+        if (!m) return;
+        if (config.medecins.length <= 1) { alert("Il doit rester au moins un médecin."); return; }
+        if (!confirm(`Supprimer ${m.nom} ?\n\nSa saisie (nombre d'IVT) et son matériel spécifique seront également supprimés.`)) return;
+        config.medecins = config.medecins.filter(x => x.id !== id);
+        delete config.materielSpecifique[id];
+        delete compteursIVT[id];
+        sauverSaisie();
+        if (medecinSelectionne === id) medecinSelectionne = null;
+        if (indexMedecinActuel > config.medecins.length) indexMedecinActuel = config.medecins.length;
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+
+    /* ---------- Section : Matériel de base ---------- */
+    function vueMateriel() {
+        let html = '<div class="sous-titre">Matériel commun à tous les médecins (' + config.materielBase.length + ')</div>';
+        if (!config.materielBase.length) html += '<div class="vide">Aucun article. Ajoutez-en un ci-dessous.</div>';
+
+        config.materielBase.forEach(a => {
+            if (formActif && formActif.type === 'base' && formActif.uid === a.uid) {
+                html += `
+                <div class="form-zone">
+                    <h4>✏️ Modifier l'article</h4>
+                    ${formArticle('mbe', a)}
+                    ${boutonsFormulaire(`modifierArticleBase('${a.uid}')`, 'annulerFormulaire()')}
+                </div>`;
+            } else {
+                html += `
+                <div class="item-ligne">
+                    <div class="item-corps">
+                        <div class="item-nom">${esc(a.nom)} <span class="famille">· ${esc(a.famille)}</span></div>
+                        <div class="item-meta">Réf ${esc(a.ref) || '—'} · qté ${a.qte}/IVT · cond. ${a.cond} ${esc(a.unite)} ${a.fixe ? '<span class="icone-fixe">FIXE</span>' : ''}</div>
+                    </div>
+                    <button class="icon-btn" title="Modifier" onclick="editerArticleBase('${a.uid}')">✏️</button>
+                    <button class="icon-btn danger" title="Supprimer" onclick="supprimerArticleBase('${a.uid}')">🗑️</button>
+                </div>`;
+            }
+        });
+
+        if (!(formActif && formActif.type === 'base')) {
+            html += `
+            <div class="form-zone">
+                <h4>➕ Ajouter un article (commun)</h4>
+                ${formArticle('mb', null)}
+                <div class="ligne-form"><button onclick="ajouterArticleBase()">➕ AJOUTER</button></div>
+            </div>`;
+        }
+        html += '<p class="aide">Ces articles sont comptés pour <b>chaque</b> médecin ayant une saisie &gt; 0. Quantité fixe = commandée une seule fois, quel que soit le nombre d\'IVT.</p>';
+        return html;
+    }
+
+    function editerArticleBase(u) { formActif = { type: 'base', uid: u }; afficherParametres(); }
+    function ajouterArticleBase() {
+        const a = lireArticle('mb');
+        if (!a) return;
+        a.uid = uid();
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        config.materielBase.push(a);
+        sauverConfig();
+        afficherParametres();
+    }
+    function modifierArticleBase(u) {
+        const a = config.materielBase.find(x => x.uid === u);
+        if (!a) return;
+        const data = lireArticle('mbe');
+        if (!data) return;
+        Object.assign(a, data);
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+    function supprimerArticleBase(u) {
+        const a = config.materielBase.find(x => x.uid === u);
+        if (!a) return;
+        if (!confirm(`Supprimer l'article "${a.nom}" du matériel commun ?`)) return;
+        config.materielBase = config.materielBase.filter(x => x.uid !== u);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+
+    /* ---------- Section : Matériel par médecin ---------- */
+    function vueParMedecin() {
+        let html = '<div class="sous-titre">Matériel spécifique d\'un médecin</div>';
+        html += '<p class="aide">Ces articles s\'ajoutent au matériel commun uniquement pour le médecin sélectionné.</p>';
+
+        html += '<div class="chips">' + config.medecins.map(m =>
+            `<button class="${medecinSelectionne === m.id ? 'actif' : ''}" onclick="selectionnerMedecin('${m.id}')">${esc(m.nom)}</button>`
+        ).join('') + '</div>';
+
+        if (!medecinSelectionne || !medecinParId(medecinSelectionne)) {
+            html += '<div class="vide">Sélectionnez un médecin pour gérer son matériel.</div>';
+            return html;
+        }
+
+        const m = medecinParId(medecinSelectionne);
+        const articles = articlesDuMedecin(medecinSelectionne);
+        html += `<div class="sous-titre" style="color:${esc(m.couleur)}">🧪 ${esc(m.nom)} — ${articles.length} article(s)</div>`;
+
+        if (!articles.length) html += '<div class="vide">Aucun article spécifique pour ce médecin.</div>';
+
+        articles.forEach(a => {
+            if (formActif && formActif.type === 'medArticle' && formActif.uid === a.uid) {
+                html += `
+                <div class="form-zone">
+                    <h4>✏️ Modifier l'article</h4>
+                    ${formArticle('pme', a)}
+                    ${boutonsFormulaire(`modifierArticleMed('${a.uid}')`, 'annulerFormulaire()')}
+                </div>`;
+            } else {
+                html += `
+                <div class="item-ligne">
+                    <div class="item-corps">
+                        <div class="item-nom">${esc(a.nom)} <span class="famille">· ${esc(a.famille)}</span></div>
+                        <div class="item-meta">Réf ${esc(a.ref) || '—'} · qté ${a.qte}/IVT · cond. ${a.cond} ${esc(a.unite)} ${a.fixe ? '<span class="icone-fixe">FIXE</span>' : ''}</div>
+                    </div>
+                    <button class="icon-btn" title="Modifier" onclick="editerArticleMed('${a.uid}')">✏️</button>
+                    <button class="icon-btn danger" title="Supprimer" onclick="supprimerArticleMed('${a.uid}')">🗑️</button>
+                </div>`;
+            }
+        });
+
+        if (!(formActif && formActif.type === 'medArticle')) {
+            html += `
+            <div class="form-zone">
+                <h4>➕ Ajouter un article pour ${esc(m.nom)}</h4>
+                <label class="champ">Partir d'un article du matériel commun
+                    <select onchange="prefillerArticleMed(this.value)">
+                        <option value="">— Saisie libre —</option>
+                        ${config.materielBase.map(a => `<option value="${a.uid}">${esc(a.nom)}</option>`).join('')}
+                    </select>
+                </label>
+                <div style="height:10px"></div>
+                ${formArticle('pm', null)}
+                <div class="ligne-form"><button onclick="ajouterArticleMed()">➕ AJOUTER</button></div>
+            </div>`;
+        }
+        return html;
+    }
+
+    function selectionnerMedecin(id) { medecinSelectionne = id; formActif = null; afficherParametres(); }
+
+    function prefillerArticleMed(u) {
+        const a = config.materielBase.find(x => x.uid === u);
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+        const cb = document.getElementById('pm-fixe');
+        if (!a) {
+            set('pm-nom', ''); set('pm-ref', ''); set('pm-qte', 1); set('pm-cond', 1);
+            set('pm-famille', ''); set('pm-unite', 'boîte');
+            if (cb) cb.checked = false;
+            return;
+        }
+        set('pm-nom', a.nom); set('pm-ref', a.ref); set('pm-qte', a.qte);
+        set('pm-cond', a.cond); set('pm-famille', a.famille); set('pm-unite', a.unite);
+        if (cb) cb.checked = !!a.fixe;
+    }
+
+    function ajouterArticleMed() {
+        if (!medecinSelectionne) { alert("Sélectionnez d'abord un médecin."); return; }
+        const a = lireArticle('pm');
+        if (!a) return;
+        a.uid = uid();
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        if (!config.materielSpecifique[medecinSelectionne]) config.materielSpecifique[medecinSelectionne] = [];
+        config.materielSpecifique[medecinSelectionne].push(a);
+        sauverConfig();
+        afficherParametres();
+    }
+    function editerArticleMed(u) { formActif = { type: 'medArticle', uid: u }; afficherParametres(); }
+    function modifierArticleMed(u) {
+        const a = articlesDuMedecin(medecinSelectionne).find(x => x.uid === u);
+        if (!a) return;
+        const data = lireArticle('pme');
+        if (!data) return;
+        Object.assign(a, data);
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+    function supprimerArticleMed(u) {
+        const a = articlesDuMedecin(medecinSelectionne).find(x => x.uid === u);
+        if (!a) return;
+        if (!confirm(`Retirer "${a.nom}" du matériel de ce médecin ?`)) return;
+        config.materielSpecifique[medecinSelectionne] = articlesDuMedecin(medecinSelectionne).filter(x => x.uid !== u);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+
+    /* ---------- Section : Dotation (à vérifier en stock) ---------- */
+    function vueDotation() {
+        let html = '<div class="sous-titre">Liste "à vérifier en stock" (' + config.materielAVerifier.length + ')</div>';
+        if (!config.materielAVerifier.length) html += '<div class="vide">Aucun article.</div>';
+
+        config.materielAVerifier.forEach(a => {
+            if (formActif && formActif.type === 'dotation' && formActif.uid === a.uid) {
+                html += `
+                <div class="form-zone">
+                    <h4>✏️ Modifier l'article</h4>
+                    <div class="form-grid">
+                        <label class="champ">Nom *<input type="text" id="dve-nom" value="${esc(a.nom)}"></label>
+                        <label class="champ">Référence<input type="text" id="dve-ref" value="${esc(a.ref)}"></label>
+                    </div>
+                    ${boutonsFormulaire(`modifierDotation('${a.uid}')`, 'annulerFormulaire()')}
+                </div>`;
+            } else {
+                html += `
+                <div class="item-ligne">
+                    <div class="item-corps">
+                        <div class="item-nom">${esc(a.nom)}</div>
+                        <div class="item-meta">Réf ${esc(a.ref) || '—'}</div>
+                    </div>
+                    <button class="icon-btn" title="Modifier" onclick="editerDotation('${a.uid}')">✏️</button>
+                    <button class="icon-btn danger" title="Supprimer" onclick="supprimerDotation('${a.uid}')">🗑️</button>
+                </div>`;
+            }
+        });
+
+        if (!(formActif && formActif.type === 'dotation')) {
+            html += `
+            <div class="form-zone">
+                <h4>➕ Ajouter un article à vérifier</h4>
+                <div class="form-grid">
+                    <label class="champ">Nom *<input type="text" id="dv-nom" placeholder="Ex. Compresses Ophta (2 Boîtes)"></label>
+                    <label class="champ">Référence<input type="text" id="dv-ref" placeholder="Ex. 1051069"></label>
+                </div>
+                <div class="ligne-form"><button onclick="ajouterDotation()">➕ AJOUTER</button></div>
+            </div>`;
+        }
+        html += '<p class="aide">Cette liste apparaît dans le bon de commande sous "⚠️ À vérifier en stock (Dotation)".</p>';
+        return html;
+    }
+
+    function editerDotation(u) { formActif = { type: 'dotation', uid: u }; afficherParametres(); }
+    function ajouterDotation() {
+        const nom = val('dv-nom').trim();
+        if (!nom) { alert("Le nom est obligatoire."); return; }
+        config.materielAVerifier.push({ uid: uid(), nom: nom, ref: val('dv-ref').trim() });
+        sauverConfig(); afficherParametres();
+    }
+    function modifierDotation(u) {
+        const a = config.materielAVerifier.find(x => x.uid === u);
+        if (!a) return;
+        const nom = val('dve-nom').trim();
+        if (!nom) { alert("Le nom est obligatoire."); return; }
+        a.nom = nom; a.ref = val('dve-ref').trim();
+        sauverConfig(); formActif = null; afficherParametres();
+    }
+    function supprimerDotation(u) {
+        const a = config.materielAVerifier.find(x => x.uid === u);
+        if (!a) return;
+        if (!confirm(`Supprimer "${a.nom}" de la liste de dotation ?`)) return;
+        config.materielAVerifier = config.materielAVerifier.filter(x => x.uid !== u);
+        sauverConfig(); formActif = null; afficherParametres();
+    }
+
+    /* ---------- Section : Sauvegarde ---------- */
+    function vueSauvegarde() {
+        return `
+        <div class="sous-titre">📤 Exporter la configuration</div>
+        <p class="aide">Téléverse un fichier <b>configuration-ivt.json</b> contenant médecins, matériel et dotation. À importer sur un autre téléphone pour avoir exactement les mêmes réglages.</p>
+        <button onclick="exporterConfiguration()" class="btn-vert">📤 EXPORTER LA CONFIGURATION</button>
+
+        <div class="sous-titre">📥 Importer une configuration</div>
+        <p class="aide">Remplace <b>entièrement</b> la configuration actuelle par celle du fichier choisi. La saisie (nombre d'IVT) n'est pas touchée.</p>
+        <label class="champ" style="margin-bottom:12px;">
+            <input type="file" id="fichier-config" accept="application/json,.json" onchange="importerConfiguration(this.files[0])" style="border:2px dashed #B3E5FC; padding:12px; border-radius:8px; background:#fff;">
+        </label>
+
+        <div class="sous-titre">♻️ Réinitialiser</div>
+        <p class="aide">Restaure la configuration d'origine (5 médecins, matériel par défaut).</p>
+        <button onclick="reinitialiserConfiguration()" class="btn-danger">♻️ RÉINITIALISER LA CONFIGURATION</button>`;
+    }
+
+    function exporterConfiguration() {
+        try {
+            const contenu = JSON.stringify(config, null, 2);
+            const blob = new Blob([contenu], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'configuration-ivt.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        } catch (e) { alert("Export impossible : " + e); }
+    }
+
+    function importerConfiguration(fichier) {
+        if (!fichier) return;
+        const lecteur = new FileReader();
+        lecteur.onload = () => {
+            try {
+                const objet = JSON.parse(lecteur.result);
+                if (!objet || !Array.isArray(objet.medecins) || !Array.isArray(objet.materielBase)) {
+                    alert("Fichier invalide : ce n'est pas une configuration Commande IVT.");
+                    return;
+                }
+                if (!confirm(`Importer la configuration de ${objet.medecins.length} médecin(s) ?\n\nLa configuration actuelle sera remplacée.`)) return;
+                config = migrerConfig(objet);
+                sauverConfig();
+                medecinSelectionne = null;
+                formActif = null;
+                if (indexMedecinActuel > config.medecins.length) indexMedecinActuel = config.medecins.length;
+                afficherParametres();
+                alert("Configuration importée avec succès.");
+            } catch (e) {
+                alert("Fichier illisible : " + e);
+            }
+        };
+        lecteur.readAsText(fichier);
+    }
+
+    function reinitialiserConfiguration() {
+        if (!confirm("Réinitialiser toute la configuration (médecins, matériel, dotation) aux valeurs d'origine ?\n\nLa saisie des IVT est conservée.")) return;
+        config = migrerConfig(configParDefaut());
+        sauverConfig();
+        medecinSelectionne = null;
+        formActif = null;
+        if (indexMedecinActuel > config.medecins.length) indexMedecinActuel = config.medecins.length;
+        afficherParametres();
+    }
+
+    /* ==================================================================
+       SERVICE WORKER
+       ================================================================== */
+    if ('serviceWorker' in navigator) {
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!window.__rechargeSW) { window.__rechargeSW = true; window.location.reload(); }
+            });
+        }
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker: ' + err));
+        });
+    }
+</script>
+</body>
+</html>
