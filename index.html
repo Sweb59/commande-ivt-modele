@@ -272,7 +272,9 @@
                 c.materielSpecifique[m.id] = liste;
             });
         }
-        delete c.materielBase;
+        /* La clé reste présente mais vide : une ancienne version de l'application
+           qui relirait cette configuration ne recréerait pas de matériel commun. */
+        c.materielBase = [];
 
         c.medecins.forEach(m => {
             if (!Array.isArray(c.materielSpecifique[m.id])) c.materielSpecifique[m.id] = [];
