@@ -134,8 +134,19 @@
     /* ==================================================================
        ÉTAT ET PERSISTANCE
        ================================================================== */
-    const CLE_CONFIG = 'configIVT_HPVA';
-    const CLE_SAISIE = 'saisieIVT_HPVA';
+    /* Version de l'application :
+       null            -> version clinique (Dr Karkoutly, Dr Laffineur, ...)
+       tableau de noms -> version modèle (Médecin 1, Médecin 2, ...) : base vierge
+                          de médecins, à configurer par l'utilisateur.
+
+       Les deux applications étant servies depuis la même origine
+       (sweb59.github.io), elles partageraient sinon le même localStorage :
+       chaque version utilise donc ses propres clés de stockage.            */
+    const VERSION_MODELE = ['Médecin 1', 'Médecin 2', 'Médecin 3', 'Médecin 4', 'Médecin 5'];
+
+    const SUFFIXE_STOCKAGE = Array.isArray(VERSION_MODELE) ? '_modele' : '';
+    const CLE_CONFIG = 'configIVT_HPVA' + SUFFIXE_STOCKAGE;
+    const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "carton", "lot"];
@@ -160,12 +171,6 @@
     }
 
     const COULEURS_MEDECINS = ['#7E57C2', '#E53935', '#1E88E5', '#8E24AA', '#F57F17', '#00897B', '#AD1457'];
-
-    /* Version de l'application :
-       null            -> version clinique (Dr Karkoutly, Dr Laffineur, ...)
-       tableau de noms -> version modèle (Médecin 1, Médecin 2, ...) : base vierge
-                          de médecins, à configurer par l'utilisateur.        */
-    const VERSION_MODELE = ['Médecin 1', 'Médecin 2', 'Médecin 3', 'Médecin 4', 'Médecin 5'];
 
     function medecinsParDefaut() {
         if (Array.isArray(VERSION_MODELE)) {
