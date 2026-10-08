@@ -154,7 +154,7 @@
     const CLE_DERNIER_EXPORT = 'dernierExportIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v19';
+    const VERSION_APPLI = 'commande-ivt-v20';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -279,7 +279,7 @@
             ],
             familles: FAMILLES_DEFAUT.slice(),
             unites: UNITES_DEFAUT.slice(),
-            commandeEntete: { cabinet: '', destinataire: '', date: '' }
+            commandeEntete: { cabinet: '', destinataire: '', date: '', heure: '' }
         };
     }
 
@@ -325,6 +325,7 @@
         if (typeof c.commandeEntete.cabinet !== 'string') c.commandeEntete.cabinet = '';
         if (typeof c.commandeEntete.destinataire !== 'string') c.commandeEntete.destinataire = '';
         if (typeof c.commandeEntete.date !== 'string') c.commandeEntete.date = '';
+        if (typeof c.commandeEntete.heure !== 'string') c.commandeEntete.heure = '';
 
         const tousArticles = [].concat(...Object.values(c.materielSpecifique), c.materielCatalogue);
         tousArticles.forEach(a => {
@@ -547,13 +548,18 @@ window.onload = () => {
         return p[2] + '/' + p[1] + '/' + p[0];
     }
 
+    function heureCourante() {
+        const h = new Date();
+        return String(h.getHours()).padStart(2, '0') + 'h' + String(h.getMinutes()).padStart(2, '0');
+    }
+
     function obtenirDateFichier() {
         const date = new Date();
         return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
     }
 
     function majEnteteCommande(champ, valeur) {
-        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '' };
+        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '', heure: '' };
         config.commandeEntete[champ] = valeur;
         sauverConfig();
     }
@@ -562,8 +568,8 @@ window.onload = () => {
         vueCourante = 'commande';
         const container = document.getElementById('app-container');
         let commandeFinale = {};
-        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '' };
-        if (config.commandeEntete.date !== dateISOJour()) { config.commandeEntete.date = dateISOJour(); sauverConfig(); }
+        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '', heure: '' };
+        if (config.commandeEntete.date !== dateISOJour() || config.commandeEntete.heure === '') { config.commandeEntete.date = dateISOJour(); config.commandeEntete.heure = heureCourante(); sauverConfig(); }
         const entete = config.commandeEntete;
         const dateAffichage = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -627,11 +633,11 @@ window.onload = () => {
                 <div class="entete-print">
                     ${entete.cabinet ? `<div style="font-weight:bold;">${esc(entete.cabinet)}</div>` : ''}
                     ${entete.destinataire ? `<div>À l'attention de : ${esc(entete.destinataire)}</div>` : ''}
-                    <div>Date : ${esc(dateAfficheeFR(entete.date))}</div>
+                    <div>Date : ${esc(dateAfficheeFR(entete.date))}${entete.heure ? ' à ' + esc(entete.heure) : ''}</div>
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px;">
-                    <p style="font-size: 0.9rem; color: #78909C; font-style: italic; margin: 0;">Édité le ${esc(dateAffichage)}</p>
+                    <p style="font-size: 0.9rem; color: #78909C; font-style: italic; margin: 0;">Édité le ${esc(dateAffichage)}${entete.heure ? ' à ' + esc(entete.heure) : ''}</p>
                     <button id="btn-toggle-cond" onclick="toggleConditionnement()" class="no-print" style="width: auto; padding: 8px 15px; font-size: 0.85rem; margin: 0;">👁️ Afficher Conditionnement</button>
                 </div>
 
