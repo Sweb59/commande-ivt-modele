@@ -1,4 +1,4 @@
-const CACHE = 'commande-ivt-v18';
+const CACHE = 'commande-ivt-v19';
 
 const ASSETS = [
   './',

@@ -154,7 +154,7 @@
     const CLE_DERNIER_EXPORT = 'dernierExportIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v18';
+    const VERSION_APPLI = 'commande-ivt-v19';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -1265,7 +1265,7 @@ window.onload = () => {
         return `
         ${etat}
         <div class="sous-titre">📤 Partager la configuration</div>
-        <p class="aide">Enregistre le fichier <b>configuration-ivt.json</b> dans iCloud Drive, Google Drive, Fichiers… ou l'envoie par mail/WhatsApp, pour l'importer sur un autre appareil.</p>
+        <p class="aide">Enregistre le fichier de configuration dans iCloud Drive, Google Drive, Fichiers… ou l'envoie par mail/WhatsApp, pour l'importer sur un autre appareil.</p>
         <button onclick="partagerConfiguration()" class="btn-vert">📤 PARTAGER LE FICHIER</button>
 
         <div class="sous-titre">💾 Télécharger le fichier</div>
@@ -1275,7 +1275,7 @@ window.onload = () => {
         <div class="sous-titre">📥 Importer une configuration</div>
         <p class="aide">Remplace <b>entièrement</b> la configuration actuelle par celle du fichier choisi. La saisie (nombre d'IVT) n'est pas touchée.</p>
         <label class="champ" style="margin-bottom:12px;">
-            <input type="file" id="fichier-config" accept="application/json,.json" onchange="importerConfiguration(this.files[0])" style="border:2px dashed #B3E5FC; padding:12px; border-radius:8px; background:#fff;">
+            <input type="file" id="fichier-config" accept="application/json,.json,.txt" onchange="importerConfiguration(this.files[0])" style="border:2px dashed #B3E5FC; padding:12px; border-radius:8px; background:#fff;">
         </label>
 
         <div class="sous-titre">♻️ Réinitialiser</div>
@@ -1286,14 +1286,20 @@ window.onload = () => {
     function partagerConfiguration() {
         try {
             const contenu = JSON.stringify(config, null, 2);
-            const fichier = new File([new Blob([contenu], { type: 'application/json' })], 'configuration-ivt-' + obtenirDateFichier() + '.json', { type: 'application/json' });
-            if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
-                navigator.share({ files: [fichier], title: 'Configuration Commande IVT', text: 'Fichier de configuration Commande IVT' })
-                    .then(() => { marquerExport(); alert('Configuration partagée. Vous pouvez maintenant l\'importer sur un autre appareil si besoin.'); })
-                    .catch(err => { if (err && err.name !== 'AbortError') alert('Partage annulé : ' + err); });
-            } else {
+            /* Android Chrome refuse le partage des .json : on partage le même
+               contenu sous extension .txt (texte), l'import le lit pareil. */
+            const fichier = new File([new Blob([contenu], { type: 'application/json' })], 'configuration-ivt-' + obtenirDateFichier() + '.txt', { type: 'text/plain' });
+            if (!(navigator.canShare && navigator.share && navigator.canShare({ files: [fichier] }))) {
                 exporterConfiguration();
+                return;
             }
+            navigator.share({ files: [fichier], title: 'Configuration Commande IVT', text: 'Fichier de configuration Commande IVT' })
+                .then(() => { marquerExport(); })
+                .catch(err => {
+                    if (err && err.name === 'AbortError') return;
+                    alert("Le partage de fichier est refusé sur cet appareil : le fichier a été téléchargé à la place.\n\nVous pourrez l'enregistrer dans Drive ou Fichiers depuis le dossier Téléchargements.");
+                    exporterConfiguration();
+                });
         } catch (e) { alert("Partage impossible : " + e); }
     }
 
