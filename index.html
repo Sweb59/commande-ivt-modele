@@ -154,7 +154,7 @@
     const CLE_DERNIER_EXPORT = 'dernierExportIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v20';
+    const VERSION_APPLI = 'commande-ivt-v2.0';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -720,7 +720,7 @@ window.onload = () => {
         fetch('sw.js?u=' + Date.now(), { cache: 'no-store' })
             .then(r => (r.ok ? r.text() : ''))
             .then(txt => {
-                const m = (txt || '').match(/commande-ivt-v\d+/);
+                const m = (txt || '').match(/commande-ivt-v[\w.]+/);
                 const dispo = m ? m[0] : '';
                 const e = document.getElementById('ligne-version');
                 if (e) {
