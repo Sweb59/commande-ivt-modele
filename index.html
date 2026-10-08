@@ -805,21 +805,15 @@
         });
 
         if (!(formActif && formActif.type === 'medArticle')) {
-            const existants = [];
-            Object.keys(config.materielSpecifique).forEach(idMed => {
-                if (idMed === medecinSelectionne) return;
-                (config.materielSpecifique[idMed] || []).forEach(a => {
-                    if (a.nom && !existants.some(x => x.a.nom === a.nom && x.a.ref === a.ref)) existants.push({ idMed: idMed, a: a });
-                });
-            });
+            const catalogue = catalogueArticles();
             html += `
             <div class="form-zone">
                 <h4>➕ Ajouter un article pour ${esc(m.nom)}</h4>
-                ${existants.length ? `
-                <label class="champ">Partir d'un article déjà utilisé
+                ${catalogue.length ? `
+                <label class="champ">Tout le matériel (sinon saisie libre)
                     <select onchange="prefillerArticleMed(this.value)">
                         <option value="">— Saisie libre —</option>
-                        ${existants.map(x => `<option value="${esc(x.idMed)}|${esc(x.a.uid)}">${esc(x.a.nom)}${x.a.ref ? ' — ' + esc(x.a.ref) : ''}</option>`).join('')}
+                        ${catalogue.map((a, i) => `<option value="${i}">${esc(a.nom)}${a.ref ? ' — ' + esc(a.ref) : ''}</option>`).join('')}
                     </select>
                 </label>
                 <div style="height:10px"></div>` : ''}
@@ -832,10 +826,21 @@
 
     function selectionnerMedecin(id) { medecinSelectionne = id; formActif = null; afficherParametres(); }
 
+    function catalogueArticles() {
+        const liste = [];
+        const ajouter = a => {
+            if (!a || !a.nom) return;
+            if (!liste.some(x => x.nom === a.nom && (x.ref || '') === (a.ref || ''))) liste.push(a);
+        };
+        Object.keys(config.materielSpecifique || {}).forEach(id => (config.materielSpecifique[id] || []).forEach(ajouter));
+        (config.materielBase || []).forEach(ajouter);
+        (config.materielAVerifier || []).forEach(a => ajouter({ nom: a.nom, ref: a.ref, qte: 1, cond: 1, famille: '', unite: 'boîte', fixe: false }));
+        return liste;
+    }
+
     function prefillerArticleMed(cle) {
-        const morceaux = String(cle || '').split('|');
-        const idMed = morceaux[0], idArticle = morceaux[1];
-        const a = idArticle ? (config.materielSpecifique[idMed] || []).find(x => x.uid === idArticle) : null;
+        const i = Number(cle);
+        const a = (cle === '' || !Number.isInteger(i) || i < 0) ? null : (catalogueArticles()[i] || null);
         const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
         const cb = document.getElementById('pm-fixe');
         if (!a) {
