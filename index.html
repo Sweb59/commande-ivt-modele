@@ -189,9 +189,32 @@
         ];
     }
 
+    function catalogueParDefaut() {
+        return [
+            { nom: "Bétadine Opht 20ml", ref: "1548498", qte: 2, famille: "Médicaments & Solutés", cond: 20, unite: "boîte", fixe: true },
+            { nom: "Aiguilles Jaunes", ref: "1078380", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+            { nom: "Sets IVT", ref: "1640668", qte: 1, famille: "Consommables & Sets", cond: 76, unite: "carton" },
+            { nom: "Badigeons", ref: "1534736", qte: 1, famille: "Consommables & Sets", cond: 40, unite: "boîte" },
+            { nom: "Sterdex Unidose", ref: "1015711", qte: 1, famille: "Médicaments & Solutés", cond: 12, unite: "boîte" },
+            { nom: "Tétracaïne 1% 0.4ml", ref: "1017413", qte: 1, famille: "Médicaments & Solutés", cond: 100, unite: "boîte" },
+            { nom: "Aiguilles Roses 18G", ref: "1053188", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+            { nom: "Seringues de 20ml Luer Lock", ref: "1078408", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
+            { nom: "Feutres dermographiques", ref: "1633514", qte: 1, famille: "Consommables & Sets", cond: 50, unite: "boîte" },
+            { nom: "Microsponges", ref: "1118761", qte: 1, famille: "Consommables & Sets", cond: 25, unite: "boîte" },
+            { nom: "Gants Stériles 6.5", ref: "1558699", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+            { nom: "Gants Stériles 7.5", ref: "1558701", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+            { nom: "Gants Stériles 8", ref: "1558702", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+            { nom: "Gants Stériles 8.5", ref: "1558703", qte: 1, famille: "Gants Stériles", cond: 50, unite: "boîte" },
+            { nom: "Quinofree 0.3% 0.5ml", ref: "1532136", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" },
+            { nom: "BSS Poche 500ml", ref: "1018394", qte: 1, famille: "Médicaments & Solutés", cond: 6, unite: "carton", fixe: true },
+            { nom: "Na Cl 0.9%", ref: "1541039", qte: 1, famille: "Médicaments & Solutés", cond: 20, unite: "boîte" }
+        ];
+    }
+
     function configParDefaut() {
         return {
             medecins: medecinsParDefaut(),
+            materielCatalogue: catalogueParDefaut(),
             materielBase: [
                 { nom: "Bétadine Opht 20ml", ref: "1548498", qte: 2, famille: "Médicaments & Solutés", cond: 20, unite: "boîte", fixe: true },
                 { nom: "Aiguilles Jaunes", ref: "1078380", qte: 1, famille: "Aiguilles & Seringues", cond: 100, unite: "boîte" },
@@ -256,6 +279,7 @@
         if (!c || typeof c !== 'object') return migrerConfig(def);
         c.medecins = Array.isArray(c.medecins) && c.medecins.length ? c.medecins : def.medecins;
         c.materielSpecifique = (c.materielSpecifique && typeof c.materielSpecifique === 'object') ? c.materielSpecifique : {};
+        c.materielCatalogue = (Array.isArray(c.materielCatalogue) && c.materielCatalogue.length) ? c.materielCatalogue : def.materielCatalogue;
         c.materielAVerifier = Array.isArray(c.materielAVerifier) ? c.materielAVerifier : def.materielAVerifier;
         c.familles = Array.isArray(c.familles) ? c.familles : [];
         c.unites = Array.isArray(c.unites) ? c.unites : [];
@@ -285,7 +309,7 @@
             if (!Array.isArray(c.materielSpecifique[m.id])) c.materielSpecifique[m.id] = [];
         });
 
-        const tousArticles = [].concat(...Object.values(c.materielSpecifique));
+        const tousArticles = [].concat(...Object.values(c.materielSpecifique), c.materielCatalogue);
         tousArticles.forEach(a => {
             if (!a.uid) a.uid = uid();
             if (a.fixe === undefined) a.fixe = false;
@@ -847,6 +871,7 @@
             if (!a || !a.nom) return;
             if (!liste.some(x => x.nom === a.nom && (x.ref || '') === (a.ref || ''))) liste.push(a);
         };
+        (config.materielCatalogue || []).forEach(ajouter);
         Object.keys(config.materielSpecifique || {}).forEach(id => (config.materielSpecifique[id] || []).forEach(ajouter));
         (config.materielBase || []).forEach(ajouter);
         return liste;
@@ -876,6 +901,9 @@
         ajouterFamille(a.famille); ajouterUnite(a.unite);
         if (!config.materielSpecifique[medecinSelectionne]) config.materielSpecifique[medecinSelectionne] = [];
         config.materielSpecifique[medecinSelectionne].push(a);
+        if (!config.materielCatalogue.some(x => x.nom === a.nom && (x.ref || '') === (a.ref || ''))) {
+            config.materielCatalogue.push(Object.assign({}, a, { uid: uid() }));
+        }
         sauverConfig();
         afficherParametres();
     }
