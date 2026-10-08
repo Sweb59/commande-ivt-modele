@@ -634,9 +634,24 @@
                     ${navBtn('dotation', '⚠️ Dotation')}
                     ${navBtn('sauvegarde', '💾 Sauvegarde')}
                 </div>
+                <div class="aide" id="ligne-version" style="text-align:right; margin-top:-4px;">Version : ${Array.isArray(VERSION_MODELE) ? 'modèle' : 'clinique'}</div>
                 ${contenu}
                 <button onclick="basculerParametres()" class="btn-gris" style="margin-top: 20px;">⬅ RETOUR À L'APPLICATION</button>
             </div>`;
+        majLigneVersion();
+    }
+
+    function majLigneVersion() {
+        const e = document.getElementById('ligne-version');
+        if (!e) return;
+        const type = Array.isArray(VERSION_MODELE) ? 'modèle' : 'clinique';
+        fetch('sw.js?u=' + Date.now(), { cache: 'no-store' })
+            .then(r => (r.ok ? r.text() : ''))
+            .then(txt => {
+                const m = (txt || '').match(/commande-ivt-v\d+/);
+                e.textContent = 'Version : ' + type + ' — ' + (m ? m[0] : 'à jour');
+            })
+            .catch(() => { e.textContent = 'Version : ' + type; });
     }
 
     /* ---------- Formulaire article ---------- */
