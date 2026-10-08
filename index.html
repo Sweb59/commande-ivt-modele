@@ -15,8 +15,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Commande IVT">
 
-<script src="vendor/xlsx.full.min.js"></script>
-
 <style>
     body { font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; background-color: #F0F4F8; color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; padding-top: calc(80px + env(safe-area-inset-top)); padding-bottom: calc(20px + env(safe-area-inset-bottom)); box-sizing: border-box; }
 
@@ -80,6 +78,10 @@
     .vide { color: #90A4AE; font-style: italic; font-size: 0.95rem; padding: 12px; background: #FAFCFE; border-radius: 8px; margin-bottom: 12px; }
     .aide { font-size: 0.85rem; color: #78909C; text-align: left; line-height: 1.4; margin-bottom: 12px; }
 
+    .recherche { width: 100%; box-sizing: border-box; padding: 10px; border: 2px solid #B3E5FC; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; outline: none; }
+    .recherche:focus { border-color: #0288D1; }
+    .entete-print { display: none; }
+
     /* ---------- Responsive ---------- */
     @media (max-width: 600px) {
         .card { padding: 15px; }
@@ -121,6 +123,8 @@
         tr { page-break-inside: avoid; }
 
         .saut-de-page { page-break-before: always; break-before: page; margin-top: 0 !important; }
+
+        .entete-print { display: block !important; text-align: left; font-size: 0.95rem; line-height: 1.5; margin-bottom: 10px; }
     }
 </style>
 </head>
@@ -149,7 +153,7 @@
     const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v16';
+    const VERSION_APPLI = 'commande-ivt-v17';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -158,13 +162,13 @@
     let compteursIVT = {};
     let indexMedecinActuel = 0;
     let modeCorrection = false;
-    let donneesCommandeFinale = [];
 
     let vueCourante = 'saisie';
     let vueAvantParam = 'saisie';
     let sectionParam = 'medecins';
     let formActif = null;          /* {type, id/uid} */
     let medecinSelectionne = null; /* id du médecin (section "par médecin") */
+    let filtreMedecin = '';        /* filtre de recherche (section "par médecin") */
 
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
@@ -273,7 +277,8 @@
                 { nom: "Chibro Cadron Collyre 5ml (4 Flacons)", ref: "1015400" }
             ],
             familles: FAMILLES_DEFAUT.slice(),
-            unites: UNITES_DEFAUT.slice()
+            unites: UNITES_DEFAUT.slice(),
+            commandeEntete: { cabinet: '', destinataire: '', date: '' }
         };
     }
 
@@ -314,6 +319,11 @@
         c.medecins.forEach(m => {
             if (!Array.isArray(c.materielSpecifique[m.id])) c.materielSpecifique[m.id] = [];
         });
+
+        c.commandeEntete = (c.commandeEntete && typeof c.commandeEntete === 'object') ? c.commandeEntete : {};
+        if (typeof c.commandeEntete.cabinet !== 'string') c.commandeEntete.cabinet = '';
+        if (typeof c.commandeEntete.destinataire !== 'string') c.commandeEntete.destinataire = '';
+        if (typeof c.commandeEntete.date !== 'string') c.commandeEntete.date = '';
 
         const tousArticles = [].concat(...Object.values(c.materielSpecifique), c.materielCatalogue);
         tousArticles.forEach(a => {
@@ -392,11 +402,6 @@
         indexMedecinActuel = 0;
         afficherFenetre();
     };
-
-    function obtenirDateFichier() {
-        const date = new Date();
-        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
-    }
 
     function redisplay(vue) {
         if (vue === 'recap' || vue === 'correction') afficherRecapitulatif();
@@ -481,7 +486,7 @@
                 <p>Vérifiez les quantités avant de générer le bon de commande :</p>
                 ${listeHtml}
                 <div style="display:flex; flex-direction:column; gap:15px;">
-                    <button onclick="terminerSaisie()">GÉNÉRER LA COMMANDE</button>
+                    <button onclick="demanderGeneration()">GÉNÉRER LA COMMANDE</button>
                     <button onclick="afficherMenuCorrection()" class="btn-gris">CORRIGER UNE ERREUR</button>
                 </div>
             </div>`;
@@ -517,11 +522,42 @@
         }
     }
 
+    function demanderGeneration() {
+        const aZero = config.medecins.filter(m => !compteursIVT[m.id]).map(m => m.nom);
+        if (aZero.length) {
+            const liste = aZero.slice(0, 6).join(', ') + (aZero.length > 6 ? ' et ' + (aZero.length - 6) + ' autre(s)' : '');
+            const ok = confirm('⚠️ ' + aZero.length + ' médecin(s) ont 0 IVT : ' + liste +
+                '\n\nUn médecin peut ne faire aucune IVT certaines semaines : ceci n\'est qu\'un rappel.' +
+                '\n\nGénérer le bon de commande quand même ?');
+            if (!ok) return;
+        }
+        terminerSaisie();
+    }
+
+    function dateISOJour() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function dateAfficheeFR(iso) {
+        const p = String(iso || '').split('-');
+        if (p.length !== 3) return iso || '';
+        return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function majEnteteCommande(champ, valeur) {
+        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '' };
+        config.commandeEntete[champ] = valeur;
+        sauverConfig();
+    }
+
     function terminerSaisie() {
         vueCourante = 'commande';
         const container = document.getElementById('app-container');
         let commandeFinale = {};
-        donneesCommandeFinale = [];
+        if (!config.commandeEntete || typeof config.commandeEntete !== 'object') config.commandeEntete = { cabinet: '', destinataire: '', date: '' };
+        if (config.commandeEntete.date !== dateISOJour()) { config.commandeEntete.date = dateISOJour(); sauverConfig(); }
+        const entete = config.commandeEntete;
         const dateAffichage = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
         config.medecins.forEach(med => {
@@ -549,7 +585,6 @@
                         else if (libelleUnite === 'unité') libelleUnite = 'unités';
                     }
                     let texteConditionnement = `${nbBoites} ${libelleUnite}`;
-                    donneesCommandeFinale.push({ famille: f, nom: nom, ref: data.ref, qteTotal: data.qteTotal, conditionnement: texteConditionnement });
 
                     lignes += `<tr>
                         <td data-label="Produit :" style="text-align:left; font-weight:bold; padding-left:25px;">${esc(nom)}</td>
@@ -578,6 +613,16 @@
             <div class="card" style="max-width: 800px; padding: 30px;">
                 <h2>Bon de Commande IVT</h2>
 
+                <div class="no-print" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; text-align: left;">
+                    <label class="champ">Cabinet / expéditeur<input type="text" id="ent-cabinet" value="${esc(entete.cabinet)}" placeholder="Ex. Cabinet Ophtalmologique" onchange="majEnteteCommande('cabinet', this.value)"></label>
+                    <label class="champ">Destinataire<input type="text" id="ent-destinataire" value="${esc(entete.destinataire)}" placeholder="Ex. Pharma St-Pierre" onchange="majEnteteCommande('destinataire', this.value)"></label>
+                </div>
+                <div class="entete-print">
+                    ${entete.cabinet ? `<div style="font-weight:bold;">${esc(entete.cabinet)}</div>` : ''}
+                    ${entete.destinataire ? `<div>À l'attention de : ${esc(entete.destinataire)}</div>` : ''}
+                    <div>Date : ${esc(dateAfficheeFR(entete.date))}</div>
+                </div>
+
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px;">
                     <p style="font-size: 0.9rem; color: #78909C; font-style: italic; margin: 0;">Édité le ${esc(dateAffichage)}</p>
                     <button id="btn-toggle-cond" onclick="toggleConditionnement()" class="no-print" style="width: auto; padding: 8px 15px; font-size: 0.85rem; margin: 0;">👁️ Afficher Conditionnement</button>
@@ -603,27 +648,10 @@
                 </table>
 
                 <div class="no-print" style="display:flex; gap:10px; flex-wrap: wrap;">
-                    <button onclick="window.print()" style="flex:1; min-width: 100%;">🖨️ IMPRIMER</button>
-                    <button onclick="exporterExcel()" class="btn-vert" style="flex:1; min-width: 100%;">📊 GÉNÉRATION EXCEL</button>
+                    <button onclick="window.print()" style="flex:1; min-width: 100%;">🖨️ IMPRIMER / PDF</button>
                     <button onclick="reinitialiserSaisie()" class="btn-gris" style="flex:1; min-width: 100%;">🔄 RÉ-INITIALISER</button>
                 </div>
             </div>`;
-    }
-
-    function exporterExcel() {
-        if (typeof XLSX === 'undefined') { alert("La librairie Excel n'est pas disponible."); return; }
-        let dataForExcel = [["Famille", "Produit", "Référence", "Quantité à commander", "Conditionnement"]];
-        let familleActuelle = "";
-        donneesCommandeFinale.forEach(row => {
-            let affichageFamille = row.famille !== familleActuelle ? row.famille : "";
-            familleActuelle = row.famille;
-            dataForExcel.push([affichageFamille, row.nom, row.ref, row.qteTotal, row.conditionnement]);
-        });
-        const worksheet = XLSX.utils.aoa_to_sheet(dataForExcel);
-        worksheet['!cols'] = [{ wch: 25 }, { wch: 35 }, { wch: 15 }, { wch: 22 }, { wch: 20 }];
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Commande IVT");
-        XLSX.writeFile(workbook, `Commande IVT ${obtenirDateFichier()}.xlsx`);
     }
 
     /* ==================================================================
@@ -653,6 +681,7 @@
         if (sectionParam === 'materiel') sectionParam = 'parMedecin';
         if (sectionParam === 'medecins') contenu = vueMedecins();
         else if (sectionParam === 'parMedecin') contenu = vueParMedecin();
+        else if (sectionParam === 'catalogue') contenu = vueCatalogue();
         else if (sectionParam === 'dotation') contenu = vueDotation();
         else contenu = vueSauvegarde();
 
@@ -662,6 +691,7 @@
                 <div class="param-nav">
                     ${navBtn('medecins', '👨‍⚕️ Médecins')}
                     ${navBtn('parMedecin', '🧪 Matériel par médecin')}
+                    ${navBtn('catalogue', '📚 Catalogue')}
                     ${navBtn('dotation', '⚠️ Dotation')}
                     ${navBtn('sauvegarde', '💾 Sauvegarde')}
                 </div>
@@ -787,7 +817,20 @@
         if (!config.medecins.length) html += '<div class="vide">Aucun médecin. Ajoutez-en un ci-dessous.</div>';
 
         config.medecins.forEach(m => {
-            if (formActif && formActif.type === 'medecin' && formActif.id === m.id) {
+            if (formActif && formActif.type === 'copie' && formActif.id === m.id) {
+                const cibles = config.medecins.filter(x => x.id !== m.id);
+                html += `
+                <div class="form-zone">
+                    <h4>📋 Copier la liste de ${esc(m.nom)} vers…</h4>
+                    ${cibles.length ? `
+                    <label class="champ">Remplacer la liste de
+                        <select id="cp-cible">${cibles.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select>
+                    </label>
+                    <div style="height:8px"></div>
+                    ${boutonsFormulaire(`copierListeMedecin('${m.id}')`, 'annulerFormulaire()')}
+                    ` : '<div class="vide">Aucun autre médecin.</div>'}
+                </div>`;
+            } else if (formActif && formActif.type === 'medecin' && formActif.id === m.id) {
                 html += `
                 <div class="form-zone">
                     <h4>✏️ Modifier "${esc(m.nom)}"</h4>
@@ -806,6 +849,7 @@
                         <div class="item-meta">${compteursIVT[m.id] || 0} IVT saisis · ${articlesDuMedecin(m.id).length} article(s) de matériel</div>
                     </div>
                     <button class="icon-btn" title="Modifier" onclick="editerMedecin('${m.id}')">✏️</button>
+                    <button class="icon-btn" title="Copier la liste vers un autre médecin" onclick="formCopieListe('${m.id}')">📋</button>
                     <button class="icon-btn danger" title="Supprimer" onclick="supprimerMedecin('${m.id}')">🗑️</button>
                 </div>`;
             }
@@ -827,6 +871,18 @@
     }
 
     function editerMedecin(id) { formActif = { type: 'medecin', id: id }; afficherParametres(); }
+    function formCopieListe(id) { formActif = { type: 'copie', id: id }; afficherParametres(); }
+    function copierListeMedecin(sourceId) {
+        const src = medecinParId(sourceId);
+        const cible = medecinParId(val('cp-cible'));
+        if (!src || !cible || src.id === cible.id) return;
+        const n = articlesDuMedecin(sourceId).length;
+        if (!confirm(`Remplacer la liste de ${cible.nom} par celle de ${src.nom} (${n} article(s)) ?\n\nLa liste actuelle de ${cible.nom} sera écrasée.`)) return;
+        config.materielSpecifique[cible.id] = articlesDuMedecin(sourceId).map(a => Object.assign({}, a, { uid: uid() }));
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
     function annulerFormulaire() { formActif = null; afficherParametres(); }
 
     function ajouterMedecin() {
@@ -881,11 +937,18 @@
             return html;
         }
 
-        const m = medecinParId(medecinSelectionne);
-        const articles = articlesDuMedecin(medecinSelectionne);
-        html += `<div class="sous-titre" style="color:${esc(m.couleur)}">🧪 ${esc(m.nom)} — ${articles.length} article(s)</div>`;
+        html += `<input type="search" class="recherche" id="recherche-med" placeholder="🔍 Rechercher un article (nom, référence, famille)…" value="${esc(filtreMedecin)}" oninput="filtrerMedecin(this)">`;
 
-        if (!articles.length) html += '<div class="vide">Aucun article pour ce médecin. Ajoutez-en un ci-dessous.</div>';
+        const m = medecinParId(medecinSelectionne);
+        const tous = articlesDuMedecin(medecinSelectionne);
+        const q = filtreMedecin.trim().toLowerCase();
+        const articles = tous
+            .filter(a => !q || (a.nom + ' ' + (a.ref || '') + ' ' + (a.famille || '')).toLowerCase().indexOf(q) !== -1)
+            .slice()
+            .sort((a, b) => String(a.famille || '').localeCompare(String(b.famille || ''), 'fr') || String(a.nom).localeCompare(String(b.nom), 'fr'));
+        html += `<div class="sous-titre" style="color:${esc(m.couleur)}">🧪 ${esc(m.nom)} — ${tous.length} article(s)${q ? ' · ' + articles.length + ' résultat(s)' : ''}</div>`;
+
+        if (!articles.length) html += `<div class="vide">${q ? 'Aucun article ne correspond à la recherche.' : 'Aucun article pour ce médecin. Ajoutez-en un ci-dessous.'}</div>`;
 
         articles.forEach(a => {
             if (formActif && formActif.type === 'medArticle' && formActif.uid === a.uid) {
@@ -928,7 +991,14 @@
         return html;
     }
 
-    function selectionnerMedecin(id) { medecinSelectionne = id; formActif = null; afficherParametres(); }
+    function selectionnerMedecin(id) { medecinSelectionne = id; filtreMedecin = ''; formActif = null; afficherParametres(); }
+
+    function filtrerMedecin(input) {
+        filtreMedecin = input.value;
+        afficherParametres();
+        const e = document.getElementById('recherche-med');
+        if (e) { e.focus(); e.setSelectionRange(e.value.length, e.value.length); }
+    }
 
     function catalogueArticles() {
         const liste = [];
@@ -991,6 +1061,79 @@
         if (!a) return;
         if (!confirm(`Retirer "${a.nom}" du matériel de ce médecin ?`)) return;
         config.materielSpecifique[medecinSelectionne] = articlesDuMedecin(medecinSelectionne).filter(x => x.uid !== u);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+
+    /* ---------- Section : Catalogue (liste maîtresse des articles) ---------- */
+    function vueCatalogue() {
+        let html = '<div class="sous-titre">Catalogue (' + config.materielCatalogue.length + ' article(s))</div>';
+        html += '<p class="aide">Liste maîtresse proposée dans « ➕ Ajouter un article » de chaque médecin. Les médecins qui ont déjà choisi un article <b>gardent leur propre copie</b> : les modifier ici ne change pas leurs listes. Un article ajouté à un médecin entre aussi au catalogue.</p>';
+        if (!config.materielCatalogue.length) html += '<div class="vide">Catalogue vide.</div>';
+
+        config.materielCatalogue.forEach(a => {
+            if (formActif && formActif.type === 'catArticle' && formActif.uid === a.uid) {
+                html += `
+                <div class="form-zone">
+                    <h4>✏️ Modifier "${esc(a.nom)}"</h4>
+                    ${formArticle('cate', a)}
+                    ${boutonsFormulaire(`modifierCatalogue('${a.uid}')`, 'annulerFormulaire()')}
+                </div>`;
+            } else {
+                html += `
+                <div class="item-ligne">
+                    <div class="item-corps">
+                        <div class="item-nom">${esc(a.nom)} <span class="famille">· ${esc(a.famille)}</span></div>
+                        <div class="item-meta">Réf ${esc(a.ref) || '—'} · qté ${a.qte}/IVT · cond. ${a.cond} ${esc(a.unite)} ${a.fixe ? '<span class="icone-fixe">FIXE</span>' : ''}</div>
+                    </div>
+                    <button class="icon-btn" title="Modifier" onclick="editerCatalogue('${a.uid}')">✏️</button>
+                    <button class="icon-btn danger" title="Supprimer du catalogue" onclick="supprimerCatalogue('${a.uid}')">🗑️</button>
+                </div>`;
+            }
+        });
+
+        if (!(formActif && formActif.type === 'catArticle')) {
+            html += `
+            <div class="form-zone">
+                <h4>➕ Ajouter un article au catalogue</h4>
+                ${formArticle('cat', null)}
+                <div class="ligne-form"><button onclick="ajouterCatalogue()">➕ AJOUTER</button></div>
+            </div>`;
+        }
+        return html;
+    }
+
+    function editerCatalogue(u) { formActif = { type: 'catArticle', uid: u }; afficherParametres(); }
+    function ajouterCatalogue() {
+        const a = lireArticle('cat');
+        if (!a) return;
+        if (config.materielCatalogue.some(x => x.nom === a.nom && (x.ref || '') === (a.ref || ''))) {
+            alert("Cet article figure déjà dans le catalogue.");
+            return;
+        }
+        a.uid = uid();
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        config.materielCatalogue.push(a);
+        sauverConfig();
+        afficherParametres();
+    }
+    function modifierCatalogue(u) {
+        const a = config.materielCatalogue.find(x => x.uid === u);
+        if (!a) return;
+        const data = lireArticle('cate');
+        if (!data) return;
+        Object.assign(a, data);
+        ajouterFamille(a.famille); ajouterUnite(a.unite);
+        sauverConfig();
+        formActif = null;
+        afficherParametres();
+    }
+    function supprimerCatalogue(u) {
+        const a = config.materielCatalogue.find(x => x.uid === u);
+        if (!a) return;
+        if (!confirm(`Retirer "${a.nom}" du catalogue ?\n\nLes médecins qui l'ont déjà dans leur liste le conservent.`)) return;
+        config.materielCatalogue = config.materielCatalogue.filter(x => x.uid !== u);
         sauverConfig();
         formActif = null;
         afficherParametres();

@@ -1,10 +1,9 @@
-const CACHE = 'commande-ivt-v16';
+const CACHE = 'commande-ivt-v17';
 
 const ASSETS = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'vendor/xlsx.full.min.js',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
