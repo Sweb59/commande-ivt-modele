@@ -148,6 +148,9 @@
     const CLE_CONFIG = 'configIVT_HPVA' + SUFFIXE_STOCKAGE;
     const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
 
+    /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
+    const VERSION_APPLI = 'commande-ivt-v13';
+
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
 
@@ -668,16 +671,43 @@
     }
 
     function majLigneVersion() {
-        const e = document.getElementById('ligne-version');
-        if (!e) return;
         const type = Array.isArray(VERSION_MODELE) ? 'modèle' : 'clinique';
         fetch('sw.js?u=' + Date.now(), { cache: 'no-store' })
             .then(r => (r.ok ? r.text() : ''))
             .then(txt => {
                 const m = (txt || '').match(/commande-ivt-v\d+/);
-                e.textContent = 'Version : ' + type + ' — ' + (m ? m[0] : 'à jour');
+                const dispo = m ? m[0] : '';
+                const e = document.getElementById('ligne-version');
+                if (e) {
+                    e.textContent = 'Version : ' + type + ' — ' + (dispo || VERSION_APPLI) +
+                        (dispo && dispo !== VERSION_APPLI ? ' (page ' + VERSION_APPLI + ')' : '');
+                }
+                if (dispo && dispo !== VERSION_APPLI) afficherBanniereMaj(dispo);
+                else masquerBanniereMaj();
             })
-            .catch(() => { e.textContent = 'Version : ' + type; });
+            .catch(() => {});
+    }
+
+    function afficherBanniereMaj(v) {
+        let b = document.getElementById('banniere-maj');
+        if (!b) {
+            b = document.createElement('div');
+            b.id = 'banniere-maj';
+            b.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;background:#1565C0;color:#fff;' +
+                'padding:12px 14px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.35);display:flex;gap:10px;' +
+                'align-items:center;justify-content:space-between;font-size:15px;';
+            b.innerHTML = '<span id="banniere-maj-texte"></span>' +
+                '<button id="banniere-maj-btn" style="background:#fff;color:#1565C0;border:0;border-radius:8px;padding:9px 14px;font-weight:bold;cursor:pointer;">🔄 RECHARGER</button>';
+            document.body.appendChild(b);
+            document.getElementById('banniere-maj-btn').addEventListener('click', () => window.location.reload());
+        }
+        document.getElementById('banniere-maj-texte').textContent = 'Mise à jour disponible (' + v + ')';
+        b.style.display = 'flex';
+    }
+
+    function masquerBanniereMaj() {
+        const b = document.getElementById('banniere-maj');
+        if (b) b.style.display = 'none';
     }
 
     /* ---------- Formulaire article ---------- */
@@ -1079,6 +1109,17 @@
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker: ' + err));
         });
+
+        /* Vérifie régulièrement s'il existe une version plus récente */
+        const verifierMaj = () => {
+            majLigneVersion();
+            if (navigator.serviceWorker.getRegistration) {
+                navigator.serviceWorker.getRegistration().then(r => { if (r) r.update(); }).catch(() => {});
+            }
+        };
+        window.addEventListener('load', () => setTimeout(verifierMaj, 3000));
+        setInterval(verifierMaj, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) verifierMaj(); });
     }
 </script>
 </body>
