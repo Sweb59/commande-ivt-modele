@@ -149,7 +149,7 @@
     const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v13';
+    const VERSION_APPLI = 'commande-ivt-v14';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -545,6 +545,7 @@
                         if (libelleUnite === 'boîte') libelleUnite = 'boîtes';
                         else if (libelleUnite === 'carton') libelleUnite = 'cartons';
                         else if (libelleUnite === 'lot') libelleUnite = 'lots';
+                        else if (libelleUnite === 'unité') libelleUnite = 'unités';
                     }
                     let texteConditionnement = `${nbBoites} ${libelleUnite}`;
                     donneesCommandeFinale.push({ famille: f, nom: nom, ref: data.ref, qteTotal: data.qteTotal, conditionnement: texteConditionnement });
@@ -713,6 +714,9 @@
     /* ---------- Formulaire article ---------- */
     function formArticle(pre, a) {
         a = a || { nom: '', ref: '', qte: 1, famille: '', cond: 1, unite: 'boîte', fixe: false };
+        const uniteCourante = a.unite || 'boîte';
+        const unites = config.unites.slice();
+        if (unites.indexOf(uniteCourante) === -1) unites.push(uniteCourante);
         return `
         <div class="form-grid">
             <label class="champ">Nom *<input type="text" id="${pre}-nom" value="${esc(a.nom)}" placeholder="Ex. Bétadine Opht 20ml"></label>
@@ -720,11 +724,34 @@
             <label class="champ">Quantité (par IVT)<input type="number" id="${pre}-qte" min="0" value="${a.qte}"></label>
             <label class="champ">Conditionnement (par)<input type="number" id="${pre}-cond" min="1" value="${a.cond}"></label>
             <label class="champ">Famille<input type="text" id="${pre}-famille" list="liste-familles" value="${esc(a.famille)}"></label>
-            <label class="champ">Unité<input type="text" id="${pre}-unite" list="liste-unites" value="${esc(a.unite || 'boîte')}"></label>
+            <label class="champ">Unité<select id="${pre}-unite" onchange="changerUnite(this)">${unites.map(u => `<option value="${esc(u)}" ${u === uniteCourante ? 'selected' : ''}>${esc(u)}</option>`).join('')}<option value="__autre__">➕ Autre unité…</option></select></label>
         </div>
         <label class="champ case-fixe"><input type="checkbox" id="${pre}-fixe" ${a.fixe ? 'checked' : ''}> Quantité fixe (non multipliée par le nombre d'IVT)</label>
-        <datalist id="liste-familles">${config.familles.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
-        <datalist id="liste-unites">${config.unites.map(u => `<option value="${esc(u)}">`).join('')}</datalist>`;
+        <datalist id="liste-familles">${config.familles.map(f => `<option value="${esc(f)}">`).join('')}</datalist>`;
+    }
+
+    function changerUnite(select) {
+        if (select.value !== '__autre__') { select.dataset.avant = select.value; return; }
+        const u = (prompt('Nouvelle unité :') || '').trim();
+        if (u) {
+            if (config.unites.indexOf(u) === -1) { config.unites.push(u); sauverConfig(); }
+            select.value = u;
+            select.dataset.avant = u;
+        } else {
+            select.value = select.dataset.avant || 'boîte';
+        }
+    }
+
+    function assurerOptionUnite(select, unite) {
+        if (!select || !unite) return;
+        if (!Array.prototype.some.call(select.options, o => o.value === unite)) {
+            const opt = document.createElement('option');
+            opt.value = unite;
+            opt.textContent = unite;
+            const autre = select.querySelector('option[value="__autre__"]');
+            if (autre) select.insertBefore(opt, autre); else select.appendChild(opt);
+        }
+        select.value = unite;
     }
 
     function lireArticle(pre) {
@@ -921,7 +948,8 @@
             return;
         }
         set('pm-nom', a.nom); set('pm-ref', a.ref); set('pm-qte', a.qte);
-        set('pm-cond', a.cond); set('pm-famille', a.famille); set('pm-unite', a.unite);
+        set('pm-cond', a.cond); set('pm-famille', a.famille);
+        assurerOptionUnite(document.getElementById('pm-unite'), a.unite);
         if (cb) cb.checked = !!a.fixe;
     }
 
