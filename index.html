@@ -149,7 +149,7 @@
     const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
-    const UNITES_DEFAUT = ["boîte", "carton", "lot"];
+    const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
 
     let config = null;
     let compteursIVT = {};
@@ -283,6 +283,8 @@
         c.materielAVerifier = Array.isArray(c.materielAVerifier) ? c.materielAVerifier : def.materielAVerifier;
         c.familles = Array.isArray(c.familles) ? c.familles : [];
         c.unites = Array.isArray(c.unites) ? c.unites : [];
+        /* Suggestions d'unités : les valeurs par défaut sont toujours proposées */
+        c.unites = UNITES_DEFAUT.concat(c.unites.filter(u => UNITES_DEFAUT.indexOf(u) === -1));
 
         c.medecins.forEach(m => {
             if (!m.id) m.id = slugUnique(c.medecins, m.nom);
