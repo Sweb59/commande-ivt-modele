@@ -151,9 +151,10 @@
     const SUFFIXE_STOCKAGE = Array.isArray(VERSION_MODELE) ? '_modele' : '';
     const CLE_CONFIG = 'configIVT_HPVA' + SUFFIXE_STOCKAGE;
     const CLE_SAISIE = 'saisieIVT_HPVA' + SUFFIXE_STOCKAGE;
+    const CLE_DERNIER_EXPORT = 'dernierExportIVT_HPVA' + SUFFIXE_STOCKAGE;
 
     /* Version de CE fichier (doit correspondre à CACHE dans sw.js) */
-    const VERSION_APPLI = 'commande-ivt-v17';
+    const VERSION_APPLI = 'commande-ivt-v18';
 
     const FAMILLES_DEFAUT = ["Médicaments & Solutés", "Aiguilles & Seringues", "Gants Stériles", "Consommables & Sets"];
     const UNITES_DEFAUT = ["boîte", "unité", "carton", "lot"];
@@ -396,12 +397,13 @@
     /* ==================================================================
        SAISIE / RÉCAPITULATIF / COMMANDE
        ================================================================== */
-    window.onload = () => {
-        config = chargerConfig();
-        chargerSaisie();
-        indexMedecinActuel = 0;
-        afficherFenetre();
-    };
+window.onload = () => {
+            chargerSaisie();
+            config = chargerConfig();
+            indexMedecinActuel = 0;
+            afficherFenetre();
+            verifierRappelSauvegarde();
+        };
 
     function redisplay(vue) {
         if (vue === 'recap' || vue === 'correction') afficherRecapitulatif();
@@ -543,6 +545,11 @@
         const p = String(iso || '').split('-');
         if (p.length !== 3) return iso || '';
         return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function obtenirDateFichier() {
+        const date = new Date();
+        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
     }
 
     function majEnteteCommande(champ, valeur) {
@@ -1207,11 +1214,63 @@
     }
 
     /* ---------- Section : Sauvegarde ---------- */
+    function joursDepuisDernierExport() {
+        try {
+            const s = localStorage.getItem(CLE_DERNIER_EXPORT);
+            if (!s) return Infinity;
+            const p = String(s).split('-');
+            if (p.length !== 3) return Infinity;
+            const d = new Date(+p[0], +p[1] - 1, +p[2]);
+            return Math.floor((new Date() - d) / 86400000);
+        } catch (e) { return Infinity; }
+    }
+
+    function marquerExport() {
+        try { localStorage.setItem(CLE_DERNIER_EXPORT, dateISOJour()); } catch (e) {}
+    }
+
+    function verifierRappelSauvegarde() {
+        if (joursDepuisDernierExport() <= 7) return;
+        const cleRappel = 'rappelSave_HPVA' + SUFFIXE_STOCKAGE;
+        let dejaAffiche = false;
+        try { dejaAffiche = localStorage.getItem(cleRappel) === dateISOJour(); } catch (e) {}
+        if (dejaAffiche) return;
+        try { localStorage.setItem(cleRappel, dateISOJour()); } catch (e) {}
+        let b = document.getElementById('banniere-save');
+        if (!b) {
+            b = document.createElement('div');
+            b.id = 'banniere-save';
+            b.style.cssText = 'position:fixed;left:10px;right:10px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:9998;background:#FFF3CD;' +
+                'color:#4E342E;padding:10px 14px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;gap:8px;align-items:center;' +
+                'justify-content:space-between;font-size:14px;border:1px solid #FFE08A;';
+            b.innerHTML = '<span style="flex:1;">💾 <b>Pensez à sauvegarder votre configuration</b> (dernière sauvegarde > 7 jours)</span>' +
+                '<button style="background:#4E342E;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-weight:bold;cursor:pointer;">SAUVEGARDER</button>';
+            document.body.appendChild(b);
+            b.querySelector('button').addEventListener('click', () => {
+                b.remove();
+                if (vueCourante !== 'parametres') basculerParametres();
+                allerSection('sauvegarde');
+            });
+        }
+        b.style.display = 'flex';
+    }
+
     function vueSauvegarde() {
+        const jours = joursDepuisDernierExport();
+        const der = localStorage.getItem(CLE_DERNIER_EXPORT);
+        let etat = '';
+        if (jours === Infinity) etat = '<p class="aide" style="color:#9A6B00; background:#FFF3CD; padding:10px; border-radius:8px; border:1px solid #FFE08A;">📌 Vous n\'avez pas encore sauvegardé votre configuration : pensez à le faire pour ne rien perdre.</p>';
+        else if (jours > 7) etat = '<p class="aide" style="color:#9A6B00; background:#FFF3CD; padding:10px; border-radius:8px; border:1px solid #FFE08A;">📌 Dernière sauvegarde le ' + (der ? dateAfficheeFR(der) : '—') + ' (il y a ' + jours + ' jour(s)) : pensez à la refaire.</p>';
+        else etat = '<p class="aide">Dernière sauvegarde : le ' + (der ? dateAfficheeFR(der) : '—') + '.</p>';
         return `
-        <div class="sous-titre">📤 Exporter la configuration</div>
-        <p class="aide">Téléverse un fichier <b>configuration-ivt.json</b> contenant médecins, matériel et dotation. À importer sur un autre téléphone pour avoir exactement les mêmes réglages.</p>
-        <button onclick="exporterConfiguration()" class="btn-vert">📤 EXPORTER LA CONFIGURATION</button>
+        ${etat}
+        <div class="sous-titre">📤 Partager la configuration</div>
+        <p class="aide">Enregistre le fichier <b>configuration-ivt.json</b> dans iCloud Drive, Google Drive, Fichiers… ou l'envoie par mail/WhatsApp, pour l'importer sur un autre appareil.</p>
+        <button onclick="partagerConfiguration()" class="btn-vert">📤 PARTAGER LE FICHIER</button>
+
+        <div class="sous-titre">💾 Télécharger le fichier</div>
+        <p class="aide">Alternative : enregistre le fichier dans le dossier Téléchargements de l'appareil (pratique aussi sur ordinateur).</p>
+        <button onclick="exporterConfiguration()" class="btn-vert">💾 EXPORTER LA CONFIGURATION</button>
 
         <div class="sous-titre">📥 Importer une configuration</div>
         <p class="aide">Remplace <b>entièrement</b> la configuration actuelle par celle du fichier choisi. La saisie (nombre d'IVT) n'est pas touchée.</p>
@@ -1222,6 +1281,20 @@
         <div class="sous-titre">♻️ Réinitialiser</div>
         <p class="aide">Restaure la configuration d'origine (5 médecins, matériel par défaut).</p>
         <button onclick="reinitialiserConfiguration()" class="btn-danger">♻️ RÉINITIALISER LA CONFIGURATION</button>`;
+    }
+
+    function partagerConfiguration() {
+        try {
+            const contenu = JSON.stringify(config, null, 2);
+            const fichier = new File([new Blob([contenu], { type: 'application/json' })], 'configuration-ivt-' + obtenirDateFichier() + '.json', { type: 'application/json' });
+            if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+                navigator.share({ files: [fichier], title: 'Configuration Commande IVT', text: 'Fichier de configuration Commande IVT' })
+                    .then(() => { marquerExport(); alert('Configuration partagée. Vous pouvez maintenant l\'importer sur un autre appareil si besoin.'); })
+                    .catch(err => { if (err && err.name !== 'AbortError') alert('Partage annulé : ' + err); });
+            } else {
+                exporterConfiguration();
+            }
+        } catch (e) { alert("Partage impossible : " + e); }
     }
 
     function exporterConfiguration() {
@@ -1235,6 +1308,7 @@
             a.click();
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            marquerExport();
         } catch (e) { alert("Export impossible : " + e); }
     }
 
