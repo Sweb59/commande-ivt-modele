@@ -809,7 +809,7 @@
             Object.keys(config.materielSpecifique).forEach(idMed => {
                 if (idMed === medecinSelectionne) return;
                 (config.materielSpecifique[idMed] || []).forEach(a => {
-                    if (a.nom && !existants.some(x => x.a.nom === a.nom)) existants.push({ idMed: idMed, a: a });
+                    if (a.nom && !existants.some(x => x.a.nom === a.nom && x.a.ref === a.ref)) existants.push({ idMed: idMed, a: a });
                 });
             });
             html += `
@@ -819,7 +819,7 @@
                 <label class="champ">Partir d'un article déjà utilisé
                     <select onchange="prefillerArticleMed(this.value)">
                         <option value="">— Saisie libre —</option>
-                        ${existants.map(x => `<option value="${esc(x.idMed)}|${esc(x.a.uid)}">${esc(x.a.nom)} — ${esc((medecinParId(x.idMed) || {}).nom || '')}</option>`).join('')}
+                        ${existants.map(x => `<option value="${esc(x.idMed)}|${esc(x.a.uid)}">${esc(x.a.nom)}${x.a.ref ? ' — ' + esc(x.a.ref) : ''}</option>`).join('')}
                     </select>
                 </label>
                 <div style="height:10px"></div>` : ''}
