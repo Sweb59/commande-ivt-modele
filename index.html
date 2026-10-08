@@ -834,7 +834,6 @@
         };
         Object.keys(config.materielSpecifique || {}).forEach(id => (config.materielSpecifique[id] || []).forEach(ajouter));
         (config.materielBase || []).forEach(ajouter);
-        (config.materielAVerifier || []).forEach(a => ajouter({ nom: a.nom, ref: a.ref, qte: 1, cond: 1, famille: '', unite: 'boîte', fixe: false }));
         return liste;
     }
 
